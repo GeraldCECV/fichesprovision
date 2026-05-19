@@ -387,7 +387,7 @@ ${data.cell.map((l) => `- ${l.desc} : ${l.amount} €`).join('\n')}
       <header>
         <img src="/logo_ypocamp.jpeg" />
         <div>
-          <h1>Provision VO Ypo Ouest</h1>
+          <h1>Génération des fiches de provision VO</h1>
         </div>
       </header>
 
