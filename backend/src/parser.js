@@ -1,7 +1,6 @@
 export function normalize(text) {
   return String(text || '')
-    .toLowerCase()
-    .normalize('NFD')
+  .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -49,6 +48,8 @@ const BRANDS = {
   autostar: 'Autostar',
   rapido: 'Rapido',
   fleurette: 'Fleurette',
+  florette: 'Fleurette',
+  flourette: 'Fleurette',
   itineo: 'Itinéo',
   itineao: 'Itinéo',
   'campereve': 'Campéréve',
@@ -263,6 +264,49 @@ function parseMotorisation(n) {
   return '';
 }
 
+function normalizeModelText(text) {
+  // Convertit les nombres en lettres dans les noms de modèles
+  const n = normalize(text);
+  return n
+    .replace(/soixante quatorze/g, '74')
+    .replace(/soixante quinze/g, '75')
+    .replace(/soixante seize/g, '76')
+    .replace(/soixante dix sept/g, '77')
+    .replace(/soixante dix huit/g, '78')
+    .replace(/soixante dix neuf/g, '79')
+    .replace(/soixante dix/g, '70')
+    .replace(/soixante onze/g, '71')
+    .replace(/soixante douze/g, '72')
+    .replace(/soixante treize/g, '73')
+    .replace(/quatre vingt dix neuf/g, '99')
+    .replace(/quatre vingt dix huit/g, '98')
+    .replace(/quatre vingt dix sept/g, '97')
+    .replace(/quatre vingt dix six/g, '96')
+    .replace(/quatre vingt quinze/g, '95')
+    .replace(/quatre vingt quatorze/g, '94')
+    .replace(/quatre vingt treize/g, '93')
+    .replace(/quatre vingt douze/g, '92')
+    .replace(/quatre vingt onze/g, '91')
+    .replace(/quatre vingt dix/g, '90')
+    .replace(/quatre vingt/g, '80')
+    .replace(/cinquante/g, '50')
+    .replace(/quarante/g, '40')
+    .replace(/trente/g, '30')
+    .replace(/vingt/g, '20')
+    .replace(/cent/g, '100')
+    .replace(/neuf/g, '9')
+    .replace(/huit/g, '8')
+    .replace(/sept/g, '7')
+    .replace(/six/g, '6')
+    .replace(/cinq/g, '5')
+    .replace(/quatre/g, '4')
+    .replace(/trois/g, '3')
+    .replace(/deux/g, '2')
+    .replace(/un/g, '1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function parseVehicle(text) {
   const n = normalize(text);
 
@@ -282,8 +326,18 @@ export function parseVehicle(text) {
     'Kronos 265 TL', 'Kronos 285 TL',
     'Prestige 694', 'Prestige 740',
     'Integral 920', 'Integral 880',
+    'Magister 74 LMF', 'Magister 74', 'Magister 64', 'Magister 54',
+    'Florium', 'Wincester', 'Microsommeil',
   ];
-  const modele = models.find((m) => n.includes(normalize(m))) || '';
+  const nModel = normalizeModelText(text);
+  const modele = models.find((m) => {
+    const nm = normalize(m).replace(/\s+/g, '');
+    const nTest = nModel.replace(/\s+/g, '');
+    if (nTest.includes(nm)) return true;
+    // Match souple : chaque mot du modèle présent dans le texte normalisé
+    const words = normalize(m).split(' ').filter(w => w.length > 1);
+    return words.length >= 2 && words.every(w => nModel.includes(w));
+  }) || '';
 
   const motorisation = parseMotorisation(n);
 
