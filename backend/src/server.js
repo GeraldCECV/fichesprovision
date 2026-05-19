@@ -123,7 +123,7 @@ app.post('/api/generate-excel', async (req, res) => {
     set(sheet, 'A55', "Test d'humidité");
     set(sheet, 'E58', surpriseAmount(v.mec));
 
-    const filename = safe(`Fiche Provision ${v.marque} ${v.modele} ${v.immat}.xlsx`);
+    const filename = safe(`${v.marque}-${v.modele}-${v.immat}.xlsx`);
     const buffer = await workbook.xlsx.writeBuffer();
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
