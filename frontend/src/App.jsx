@@ -1,7 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
-
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const vehicleLabels = {
@@ -389,7 +388,6 @@ ${data.cell.map((l) => `- ${l.desc} : ${l.amount} €`).join('\n')}
         <img src="/logo_ypocamp.jpeg" />
         <div>
           <h1>Provision VO Ypo Ouest</h1>
-          <p>Application web métier — dictée — analyse automatique — génération Excel</p>
         </div>
       </header>
 
