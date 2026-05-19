@@ -4,7 +4,10 @@ import cors from 'cors';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import OpenAI, { toFile } from 'openai';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import ExcelJS from 'exceljs';
 import { parseBlock, surpriseAmount } from './parser.js';
 
@@ -54,7 +57,7 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
 
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,
-      model: 'gpt-4o-mini-transcribe',
+      model: 'whisper-1',
       language: 'fr',
       prompt: 'Contexte: concession camping-car Ypocamp. Transcrire fidèlement une dictée métier VO. Préserver marques, modèles, immatriculations, montants en euros, MEC, mise en circulation, cession Odoo, travaux cellule, carrosserie et mécanique.'
     });
@@ -73,7 +76,7 @@ app.post('/api/generate-excel', async (req, res) => {
     if (missing.length) return res.status(400).json({ error: `Champs obligatoires manquants : ${missing.join(', ')}` });
 
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(path.resolve('assets/template_fiche_provision.xlsx'));
+    await workbook.xlsx.readFile(path.resolve(__dirname, '../assets/template_fiche_provision.xlsx'));
     const sheet = workbook.worksheets[0];
 
     const v = payload.vehicle || {};
