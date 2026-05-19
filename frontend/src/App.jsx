@@ -9,7 +9,7 @@ const vehicleLabels = {
   modele: 'Modèle',
   motorisation: 'Motorisation',
   mec: 'MEC / 1ère mise en circulation',
-  immat: 'Immatriculation',
+  immat: 'Immatriculation'
   prixAchat: "Prix d'achat €",
   cessionOdoo: 'Cession ODOO €',
   commercial: 'Réalisé par'
@@ -342,7 +342,8 @@ function App() {
       }
 
       const blob = await res.blob();
-      const name = filenameFromHeader(res.headers.get('content-disposition')) || 'Fiche Provision.xlsx';
+      const v = data.vehicle;
+      const name = `${v.marque}-${v.modele}-${v.immat}.xlsx`.replace(/[\/\\:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
