@@ -9,7 +9,7 @@ const vehicleLabels = {
   modele: 'Modèle',
   motorisation: 'Motorisation',
   mec: 'MEC / 1ère mise en circulation',
-  immat: 'Immatriculation'
+  immat: 'Immatriculation',
   prixAchat: "Prix d'achat €",
   cessionOdoo: 'Cession ODOO €',
   commercial: 'Réalisé par'
