@@ -10,7 +10,7 @@ const vehicleLabels = {
   motorisation: 'Motorisation',
   mec: 'MEC / 1ère mise en circulation',
   immat: 'Immatriculation',
-  prixAchat: 'Prix d'achat €',
+  prixAchat: "Prix d’achat €",
   cessionOdoo: 'Cession ODOO €',
   commercial: 'Réalisé par'
 };
