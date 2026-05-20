@@ -207,7 +207,6 @@ function App() {
   const [active, setActive] = useState('vehicle');
   const [data, setData] = useState(initialState);
   const [texts, setTexts] = useState({ vehicle: '', mechanics: '', body: '', cell: '' });
-  const [lastTranscript, setLastTranscript] = useState('');
   const [recording, setRecording] = useState(null);
   const [status, setStatus] = useState('Prêt.');
   const recorderRef = useRef(null);
@@ -283,7 +282,6 @@ function App() {
           if (!res.ok) throw new Error(json.error || 'Erreur transcription');
 
           const transcript = json.text || '';
-          setLastTranscript(transcript);
 
           if (block === 'body' || block === 'cell') {
             addDictatedLine(block, transcript);
@@ -428,7 +426,6 @@ ${data.cell.map((l) => `- ${l.desc} : ${l.amount} €`).join('\n')}
             </section>
           )}
 
-          {lastTranscript && (
             
       <section className="card">{children}</section>
     </>
