@@ -26,6 +26,7 @@ const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPE
 app.get('/', (_, res) => res.send('Provision VO Ypo Ouest API OK'));
 app.get('/api/health', (_, res) => res.json({ ok: true }));
 
+// Ancien endpoint (fallback regex)
 app.post('/api/analyze', (req, res) => {
   try {
     const { block, text } = req.body || {};
@@ -35,10 +36,80 @@ app.post('/api/analyze', (req, res) => {
   }
 });
 
+// Nouveau endpoint GPT â analyse complÃ¨te en une seule dictÃ©e
+app.post('/api/analyze-full', async (req, res) => {
+  try {
+    if (!openai) return res.status(400).json({ error: 'OPENAI_API_KEY manquante.' });
+    const { text } = req.body || {};
+    if (!text) return res.status(400).json({ error: 'Texte manquant.' });
+
+    const prompt = `Tu es un assistant expert en concession camping-car pour Ypocamp (Groupe Ypo Ouest).
+Ã partir de cette dictÃ©e d'un commercial, extrais toutes les informations et retourne UNIQUEMENT un JSON valide, sans texte avant ni aprÃ¨s, sans balises markdown.
+
+DictÃ©e : "${text}"
+
+Structure JSON attendue :
+{
+  "vehicle": {
+    "marque": "marque du camping-car (ex: Chausson, Fleurette, Pilote...)",
+    "modele": "modÃ¨le exact (ex: Flash 788, Magister 74 LMF...)",
+    "motorisation": "porteur + cylindrÃ©e + puissance (ex: Fiat Ducato 2.3L 140ch)",
+    "mec": "date MEC au format JJ/MM/AAAA",
+    "immat": "immatriculation au format XX-000-XX",
+    "prixAchat": "prix d'achat en chiffres uniquement",
+    "cessionOdoo": "montant cession Odoo en chiffres, 0 si absent",
+    "commercial": "prÃ©nom du commercial"
+  },
+  "mechanics": {
+    "prepEsthetique": "OUI ou NON",
+    "ct": "OUI ou NON",
+    "vidangeSimple": "OUI ou NON",
+    "vidangeComplete": "OUI ou NON",
+    "courroie": "OUI ou NON",
+    "pneus": "NON ou OUI, 1 ou OUI, 2",
+    "batterie": "OUI ou NON",
+    "autresMeca": "montant en chiffres ou 0"
+  },
+  "body": [
+    { "desc": "description travail carrosserie", "amount": "montant ou vide" }
+  ],
+  "cell": [
+    { "desc": "description travail cellule", "amount": "montant ou vide" }
+  ]
+}
+
+RÃ¨gles :
+- Si une information n'est pas mentionnÃ©e, laisse le champ vide "" sauf pour les OUI/NON (mettre NON par dÃ©faut) et les montants (mettre 0).
+- Pour la mÃ©canique, prepEsthetique est OUI par dÃ©faut sauf si explicitement dit "pas de prÃ©pa" ou "sans nettoyage".
+- Les travaux carrosserie et cellule sont des listes (max 6 pour body, max 14 pour cell).
+- Convertis les nombres Ã©crits en lettres : "soixante quatorze" â 74, "deux mille" â 2000.
+- Pour la motorisation, identifie le porteur (Fiat Ducato, Peugeot Boxer, etc.) et la puissance si mentionnÃ©e.`;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+      max_tokens: 1500
+    });
+
+    const raw = completion.choices[0]?.message?.content || '{}';
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const data = JSON.parse(clean);
+
+    // Ajouter des IDs aux lignes body/cell
+    if (data.body) data.body = data.body.map(l => ({ ...l, id: `${Date.now()}-${Math.random()}` }));
+    if (data.cell) data.cell = data.cell.map(l => ({ ...l, id: `${Date.now()}-${Math.random()}` }));
+
+    res.json({ data });
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Erreur analyse GPT.' });
+  }
+});
+
 app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
   try {
-    if (!openai) return res.status(400).json({ error: 'OPENAI_API_KEY manquante côté serveur.' });
-    if (!req.file) return res.status(400).json({ error: 'Aucun audio reçu.' });
+    if (!openai) return res.status(400).json({ error: 'OPENAI_API_KEY manquante cÃ´tÃ© serveur.' });
+    if (!req.file) return res.status(400).json({ error: 'Aucun audio reÃ§u.' });
 
     const mime = req.file.mimetype || 'audio/webm';
     let ext = 'webm';
@@ -59,7 +130,7 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
       file: audioFile,
       model: 'whisper-1',
       language: 'fr',
-      prompt: 'Contexte: concession camping-car Ypocamp. Transcrire fidèlement une dictée métier VO. Préserver marques, modèles, immatriculations, montants en euros, MEC, mise en circulation, cession Odoo, travaux cellule, carrosserie et mécanique.'
+      prompt: 'Contexte: concession camping-car Ypocamp. Transcrire fidÃ¨lement une dictÃ©e mÃ©tier VO. PrÃ©server marques, modÃ¨les, immatriculations, montants en euros, MEC, mise en circulation, cession Odoo, travaux cellule, carrosserie et mÃ©canique.'
     });
 
     fs.unlink(req.file.path, () => {});
@@ -120,7 +191,7 @@ app.post('/api/generate-excel', async (req, res) => {
 
     for (let r = 54; r <= 57; r++) { set(sheet, `A${r}`, ''); set(sheet, `E${r}`, ''); }
     set(sheet, 'A54', 'Pack Fraicheur');
-    set(sheet, 'A55', "Test d'humidité");
+    set(sheet, 'A55', "Test d'humiditÃ©");
     set(sheet, 'E58', surpriseAmount(v.mec));
 
     const filename = safe(`${v.marque}-${v.modele}-${v.immat}.xlsx`);
@@ -130,15 +201,15 @@ app.post('/api/generate-excel', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(Buffer.from(buffer));
   } catch (error) {
-    res.status(500).json({ error: error.message || 'Erreur génération Excel.' });
+    res.status(500).json({ error: error.message || 'Erreur gÃ©nÃ©ration Excel.' });
   }
 });
 
 function validatePayload(payload) {
   const v = payload.vehicle || {};
   const required = [
-    ['marque', 'Marque'], ['modele', 'Modèle'], ['motorisation', 'Motorisation'], ['mec', 'MEC'],
-    ['immat', 'Immatriculation'], ['prixAchat', "Prix d'achat"], ['cessionOdoo', 'Cession ODOO'], ['commercial', 'Réalisé par']
+    ['marque', 'Marque'], ['modele', 'ModÃ¨le'], ['motorisation', 'Motorisation'], ['mec', 'MEC'],
+    ['immat', 'Immatriculation'], ['prixAchat', "Prix d'achat"], ['cessionOdoo', 'Cession ODOO'], ['commercial', 'RÃ©alisÃ© par']
   ];
   return required.filter(([k]) => v[k] === undefined || v[k] === null || String(v[k]).trim() === '').map(([, label]) => label);
 }
