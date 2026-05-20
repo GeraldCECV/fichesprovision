@@ -79,11 +79,11 @@ Structure JSON attendue :
 }
 
 RÃ¨gles :
-- Si une information n'est pas mentionnÃ©e, laisse le champ vide "" sauf pour les OUI/NON (mettre NON par dÃ©faut) et les montants (mettre 0).
-- prepEsthetique : NON par defaut, exactement comme ct, vidangeSimple, courroie, batterie. Mettre OUI uniquement si la dictee mentionne "prepa", "preparation esthetique", "nettoyage" ou equivalent.
+- Si une information n'est pas mentionnee, laisse le champ vide "" sauf pour les montants (mettre 0).
+- Tous les champs OUI/NON de mechanics sont NON par defaut. Mettre OUI uniquement si le commercial le mentionne explicitement : "vidange" = vidangeSimple OUI, "vidange complete" = vidangeComplete OUI, "courroie" ou "courroie de distri" ou "courroie de distribution" = courroie OUI, "CT" ou "controle technique" = ct OUI, "batterie" = batterie OUI, "prepa" ou "preparation" ou "esthetique" ou "nettoyage" = prepEsthetique OUI.
 - Les travaux carrosserie et cellule sont des listes (max 6 pour body, max 14 pour cell).
-- Convertis les nombres Ã©crits en lettres : "soixante quatorze" â 74, "deux mille" â 2000.
-- Pour la motorisation, identifie le porteur (Fiat Ducato, Peugeot Boxer, etc.) et la puissance si mentionnÃ©e.`;
+- Convertis les nombres ecrits en lettres : "soixante quatorze" = 74, "deux mille" = 2000.
+- Pour la motorisation, identifie le porteur (Fiat Ducato, Peugeot Boxer, etc.) et la puissance si mentionnee.
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
