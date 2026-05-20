@@ -6,7 +6,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const vehicleLabels = {
   marque: 'Marque',
-  modèle: 'Modèle',
+  modele: 'Modèle',
   motorisation: 'Motorisation',
   mec: 'MEC / 1ère mise en circulation',
   immat: 'Immatriculation',
