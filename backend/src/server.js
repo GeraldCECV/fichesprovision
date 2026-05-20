@@ -80,7 +80,7 @@ Structure JSON attendue :
 
 RÃ¨gles :
 - Si une information n'est pas mentionnÃ©e, laisse le champ vide "" sauf pour les OUI/NON (mettre NON par dÃ©faut) et les montants (mettre 0).
-- Pour la mÃ©canique, prepEsthetique est OUI par dÃ©faut sauf si explicitement dit "pas de prÃ©pa" ou "sans nettoyage".
+- Pour la mÃ©canique, prepEsthetique est NON par dÃ©faut sauf si explicitement dit "pas de prÃ©pa" ou "sans nettoyage".
 - Les travaux carrosserie et cellule sont des listes (max 6 pour body, max 14 pour cell).
 - Convertis les nombres Ã©crits en lettres : "soixante quatorze" â 74, "deux mille" â 2000.
 - Pour la motorisation, identifie le porteur (Fiat Ducato, Peugeot Boxer, etc.) et la puissance si mentionnÃ©e.`;
@@ -165,7 +165,7 @@ app.post('/api/generate-excel', async (req, res) => {
     set(sheet, 'B12', v.commercial);
     set(sheet, 'E12', today());
 
-    set(sheet, 'D14', m.prepEsthetique || 'OUI');
+    set(sheet, 'D14', m.prepEsthetique || 'NON');
     set(sheet, 'D18', m.ct || 'NON');
     set(sheet, 'D19', m.vidangeSimple || 'NON');
     set(sheet, 'D20', m.vidangeComplete || 'NON');
