@@ -6,24 +6,24 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const vehicleLabels = {
   marque: 'Marque',
-  modele: 'Modele',
+  modèle: 'Modèle',
   motorisation: 'Motorisation',
-  mec: 'MEC / 1ere mise en circulation',
+  mec: 'MEC / 1ère mise en circulation',
   immat: 'Immatriculation',
-  prixAchat: 'Prix achat EUR',
-  cessionOdoo: 'Cession ODOO EUR',
-  commercial: 'Realise par'
+  prixAchat: 'Prix d'achat €',
+  cessionOdoo: 'Cession ODOO €',
+  commercial: 'Réalisé par'
 };
 
 const mechanicsLabels = {
-  prepEsthetique: 'Prepa esthetique',
-  ct: 'Controle technique',
+  prepEsthetique: 'Prépa esthétique',
+  ct: 'Contrôle technique',
   vidangeSimple: 'Vidange simple',
-  vidangeComplete: 'Vidange complete',
+  vidangeComplete: 'Vidange complète',
   courroie: 'Courroie distribution',
   pneus: 'Pneus',
   batterie: 'Batterie moteur',
-  autresMeca: 'Autres meca EUR'
+  autresMeca: 'Autres méca €'
 };
 
 const initialState = {
@@ -133,7 +133,7 @@ function App() {
   }
 
   async function generateExcel() {
-    setStatus('Generation Excel...');
+    setStatus('Génération Excel...');
     try {
       const res = await fetch(API_URL + '/api/generate-excel', {
         method: 'POST',
@@ -148,13 +148,13 @@ function App() {
       const a = document.createElement('a');
       a.href = url; a.download = name; a.click();
       URL.revokeObjectURL(url);
-      setStatus('Fichier telecharge.');
+      setStatus('Fichier téléchargé.');
     } catch (e) { setStatus('Erreur : ' + e.message); }
   }
 
   const tabs = [
-    { id: 'vehicle', label: 'Vehicule' },
-    { id: 'mechanics', label: 'Mecanique' },
+    { id: 'vehicle', label: 'Véhicule' },
+    { id: 'mechanics', label: 'Mécanique' },
     { id: 'body', label: 'Carrosserie' },
     { id: 'cell', label: 'Cellule' },
   ];
@@ -162,7 +162,7 @@ function App() {
   return (
     <>
       <header>
-        <h1>Generation des fiches de provision VO</h1>
+        <h1>Génération des fiches de provision VO</h1>
         <p>Groupe Ypo Ouest / Ypocamp</p>
       </header>
       <div className="layout">
@@ -175,12 +175,12 @@ function App() {
         </nav>
         <main>
           {active === 'vehicle' && (
-            <Block title="Caracteristiques Vehicules" block="vehicle" text={texts.vehicle} analyze={analyze} recording={recording} toggleRecord={toggleRecord}>
+            <Block title="Caractéristiques Véhicules" block="vehicle" text={texts.vehicle} analyze={analyze} recording={recording} toggleRecord={toggleRecord}>
               <Grid labels={vehicleLabels} values={data.vehicle} onChange={(k, v) => setData((d) => ({ ...d, vehicle: { ...d.vehicle, [k]: v } }))} />
             </Block>
           )}
           {active === 'mechanics' && (
-            <Block title="Mecanique" block="mechanics" text={texts.mechanics} analyze={analyze} recording={recording} toggleRecord={toggleRecord}>
+            <Block title="Mécanique" block="mechanics" text={texts.mechanics} analyze={analyze} recording={recording} toggleRecord={toggleRecord}>
               <Grid labels={mechanicsLabels} values={data.mechanics} onChange={(k, v) => setData((d) => ({ ...d, mechanics: { ...d.mechanics, [k]: v } }))} />
             </Block>
           )}
@@ -191,7 +191,7 @@ function App() {
             <Lines title="Cellule" block="cell" recording={recording} toggleRecord={toggleRecord} lines={data.cell} setData={setData} />
           )}
           <section className="card">
-            <button className="primary" onClick={generateExcel}>Generer le fichier Excel</button>
+            <button className="primary" onClick={generateExcel}>Générer le fichier Excel</button>
             <div className="status">{status}</div>
           </section>
         </main>
@@ -207,7 +207,7 @@ function Block({ title, block, text, analyze, recording, toggleRecord, children 
         <h2>{title}</h2>
         <textarea value={text} onChange={(e) => analyze(block, e.target.value)} placeholder="Texte transcrit..." />
         <button className={"primary" + (recording === block ? " recording" : "")} onClick={() => toggleRecord(block)}>
-          {recording === block ? 'Arreter' : 'Activer la dictee'}
+          {recording === block ? 'Arrêter' : 'Activer la dictée'}
         </button>
         <span className="badge">Analyse automatique</span>
       </section>
@@ -245,7 +245,7 @@ function Lines({ title, block, recording, toggleRecord, lines, setData }) {
       <section className="card">
         <h2>{title}</h2>
         <button className={"primary" + (recording === block ? " recording" : "")} onClick={() => toggleRecord(block)}>
-          {recording === block ? 'Arreter' : 'Activer la dictee'}
+          {recording === block ? 'Arrêter' : 'Activer la dictée'}
         </button>
       </section>
       <section className="card">
@@ -257,7 +257,7 @@ function Lines({ title, block, recording, toggleRecord, lines, setData }) {
             <button onClick={() => remove(line.id)}>x</button>
           </div>
         ))}
-        <button className="add-line" onClick={add}>+ Ajouter ligne</button>
+        <button className="add-line" onClick={add}>+ Ajouter une ligne</button>
       </section>
     </>
   );
