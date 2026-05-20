@@ -216,7 +216,7 @@ function App() {
 
   async function analyze(block, text) {
     if (!text.trim()) return;
-    setStatus('Analyse en cours (GPT)...');
+    setStatus('Analyse GPT en cours...');
     try {
       const res = await fetch(API_URL + '/api/analyze-full', {
         method: 'POST',
@@ -225,14 +225,19 @@ function App() {
       });
       const json = await res.json();
       if (json.error) { setStatus('Erreur : ' + json.error); return; }
-      const d = json.data;
-      if (d.vehicle) setData(prev => ({ ...prev, vehicle: { ...prev.vehicle, ...d.vehicle } }));
-      if (d.mechanics) setData(prev => ({ ...prev, mechanics: { ...prev.mechanics, ...d.mechanics } }));
-      if (d.body && d.body.length) setData(prev => ({ ...prev, body: d.body }));
-      if (d.cell && d.cell.length) setData(prev => ({ ...prev, cell: d.cell }));
+      const d = json.data || {};
+      // Filtre les valeurs vides pour ne pas ecraser les donnees existantes
+      const nonEmpty = (obj) => obj ? Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '' && v !== '0')) : {};
+      setData(prev => ({
+        ...prev,
+        vehicle: { ...prev.vehicle, ...nonEmpty(d.vehicle) },
+        mechanics: { ...prev.mechanics, ...nonEmpty(d.mechanics) },
+        body: (d.body && d.body.length > 0) ? d.body : prev.body,
+        cell: (d.cell && d.cell.length > 0) ? d.cell : prev.cell,
+      }));
       setStatus('');
     } catch (e) {
-      setStatus('Erreur réseau : ' + e.message);
+      setStatus('Erreur : ' + e.message);
     }
   }
   async function toggleRecord(block) {
