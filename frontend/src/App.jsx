@@ -216,48 +216,25 @@ function App() {
 
   async function analyze(block, text) {
     if (!text.trim()) return;
-    setStatus('Analyse automatique…');
-
-    const res = await fetch(`${API_URL}/api/analyze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ block, text })
-    });
-
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Erreur analyse');
-
-    if (block === 'vehicle') setData((d) => ({ ...d, vehicle: { ...d.vehicle, ...json.data } }));
-    if (block === 'mechanics') setData((d) => ({ ...d, mechanics: json.data }));
-    if (block === 'body') setData((d) => ({ ...d, body: json.data }));
-    if (block === 'cell') setData((d) => ({ ...d, cell: json.data }));
-
-    setStatus('Bloc analysé automatiquement.');
+    setStatus('Analyse en cours (GPT)...');
+    try {
+      const res = await fetch(API_URL + '/api/analyze-full', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      const json = await res.json();
+      if (json.error) { setStatus('Erreur : ' + json.error); return; }
+      const d = json.data;
+      if (d.vehicle) setData(prev => ({ ...prev, vehicle: { ...prev.vehicle, ...d.vehicle } }));
+      if (d.mechanics) setData(prev => ({ ...prev, mechanics: { ...prev.mechanics, ...d.mechanics } }));
+      if (d.body && d.body.length) setData(prev => ({ ...prev, body: d.body }));
+      if (d.cell && d.cell.length) setData(prev => ({ ...prev, cell: d.cell }));
+      setStatus('');
+    } catch (e) {
+      setStatus('Erreur réseau : ' + e.message);
+    }
   }
-
-  function updateText(block, value) {
-    setTexts((t) => ({ ...t, [block]: value }));
-    clearTimeout(timers.current[block]);
-    timers.current[block] = setTimeout(() => analyze(block, value).catch((e) => setStatus(e.message)), 550);
-  }
-
-  function addDictatedLine(block, transcript) {
-    const lines = extractLines(transcript);
-    if (!lines.length) return;
-
-    setData((d) => ({
-      ...d,
-      [block]: [...d[block], ...lines]
-    }));
-
-    setTexts((t) => ({
-      ...t,
-      [block]: `${t[block] ? `${t[block]}\n` : ''}${transcript}`
-    }));
-
-    setStatus(`${block === 'body' ? 'Carrosserie' : 'Cellule'} : ${lines.length} ligne(s) ajoutée(s). Ligne suivante après chaque montant.`);
-  }
-
   async function toggleRecord(block) {
     if (recording === block) {
       recorderRef.current?.stop();
@@ -307,6 +284,7 @@ function App() {
 
           if (block === 'body' || block === 'cell') {
             addDictatedLine(block, transcript);
+        await analyze(block, transcribedText);
           } else {
             const next = `${texts[block] ? `${texts[block]}\n` : ''}${transcript}`;
             updateText(block, next);
