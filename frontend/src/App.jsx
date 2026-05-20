@@ -428,6 +428,7 @@ ${data.cell.map((l) => `- ${l.desc} : ${l.amount} €`).join('\n')}
 
             
       <section className="card">{children}</section>
+      </main>
     </>
   );
 }
@@ -480,7 +481,6 @@ function Lines({ title, block, text, recording, toggleRecord, lines, setData, he
           </div>
         ))}
       </section>
-      </main>
     </>
   );
 }
