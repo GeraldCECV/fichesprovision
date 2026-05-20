@@ -95,6 +95,10 @@ RÃ¨gles :
     const raw = completion.choices[0]?.message?.content || '{}';
     const clean = raw.replace(/```json|```/g, '').trim();
     const data = JSON.parse(clean);
+    // Forcer prepEsthetique à NON par défaut
+    if (data.mechanics && data.mechanics.prepEsthetique === 'OUI') {
+      data.mechanics.prepEsthetique = 'NON';
+    }
 
     // Ajouter des IDs aux lignes body/cell
     if (data.body) data.body = data.body.map(l => ({ ...l, id: `${Date.now()}-${Math.random()}` }));
