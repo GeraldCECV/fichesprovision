@@ -422,7 +422,15 @@ ${data.cell.map((l) => `- ${l.desc} : ${l.amount} €`).join('\n')}
             <section className="card">
               <h2>Validation finale</h2>
               <pre>{summary}</pre>
-              <button className="primary" onClick={generateExcel}>✅ Générer le fichier Excel</button>
+                        <div className="recap">
+            <h3>Récapitulatif</h3>
+            <div className="recap-grid">
+              {Object.entries(vehicleLabels).map(([k, label]) => (
+                data.vehicle[k] ? <div key={k}><strong>{label}</strong> : {data.vehicle[k]}</div> : null
+              ))}
+            </div>
+          </div>
+          <button className="primary" onClick={generateExcel}>✅ Générer le fichier Excel</button>
             </section>
           )}
 
