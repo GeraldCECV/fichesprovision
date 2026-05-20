@@ -54,6 +54,7 @@ Structure JSON attendue :
     "marque": "marque du camping-car (ex: Chausson, Fleurette, Pilote...)",
     "modele": "modÃ¨le exact (ex: Flash 788, Magister 74 LMF...)",
     "motorisation": "porteur + cylindrÃ©e + puissance (ex: Fiat Ducato 2.3L 140ch)",
+- Corrections phonetiques marques : "imer" ou "Imer" = Hymer, "irmer" = Hymer, "haimer" = Hymer, "florette" ou "fleurette" = Fleurette, "rapido" = Rapido.
     "mec": "date MEC au format JJ/MM/AAAA",
     "immat": "immatriculation au format XX-000-XX",
     "prixAchat": "prix d'achat en chiffres uniquement",
