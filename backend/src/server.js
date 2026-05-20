@@ -192,7 +192,7 @@ app.post('/api/generate-excel', async (req, res) => {
 
     for (let r = 54; r <= 57; r++) { set(sheet, `A${r}`, ''); set(sheet, `E${r}`, ''); }
     set(sheet, 'A54', 'Pack Fraicheur');
-    set(sheet, 'A55', "Test d'humiditÃ©");
+    set(sheet, 'A55', 'Test d’humidité');
     set(sheet, 'E58', surpriseAmount(v.mec));
 function cleanFileName(str = '') {
   return String(str)
