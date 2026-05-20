@@ -193,8 +193,17 @@ app.post('/api/generate-excel', async (req, res) => {
     set(sheet, 'A54', 'Pack Fraicheur');
     set(sheet, 'A55', "Test d'humiditÃ©");
     set(sheet, 'E58', surpriseAmount(v.mec));
-
-    const filename = safe(`${v.marque}-${v.modele}-${v.immat}.xlsx`);
+function cleanFileName(str = '') {
+  return String(str)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '_')
+    .trim();
+}
+    
+    const filename = const filename =
+  `Fiche_Provision_${cleanFileName(v.marque)}_${cleanFileName(v.modele)}_${cleanFileName(v.immat)}.xlsx';
     const buffer = await workbook.xlsx.writeBuffer();
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
