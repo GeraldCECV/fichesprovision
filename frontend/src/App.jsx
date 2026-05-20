@@ -287,7 +287,7 @@ function App() {
         await analyze(block, transcribedText);
           } else {
             const next = `${texts[block] ? `${texts[block]}\n` : ''}${transcript}`;
-            updateText(block, next);
+            analyze(block, next);
             setStatus('Transcription terminée.');
           }
         } catch (error) {
@@ -380,13 +380,13 @@ ${data.cell.map((l) => `- ${l.desc} : ${l.amount} €`).join('\n')}
 
         <main>
           {active === 'vehicle' && (
-            <Block title="Caractéristiques Véhicules" block="vehicle" text={texts.vehicle} updateText={updateText} recording={recording} toggleRecord={toggleRecord}>
+            <Block title="Caractéristiques Véhicules" block="vehicle" text={texts.vehicle} analyze={analyze} recording={recording} toggleRecord={toggleRecord}>
               <Grid labels={vehicleLabels} values={data.vehicle} onChange={(k, v) => setData((d) => ({ ...d, vehicle: { ...d.vehicle, [k]: v } }))} />
             </Block>
           )}
 
           {active === 'mechanics' && (
-            <Block title="Mécanique" block="mechanics" text={texts.mechanics} updateText={updateText} recording={recording} toggleRecord={toggleRecord}>
+            <Block title="Mécanique" block="mechanics" text={texts.mechanics} analyze={analyze} recording={recording} toggleRecord={toggleRecord}>
               <Grid labels={mechanicsLabels} values={data.mechanics} onChange={(k, v) => setData((d) => ({ ...d, mechanics: { ...d.mechanics, [k]: v } }))} />
             </Block>
           )}
@@ -439,12 +439,12 @@ ${data.cell.map((l) => `- ${l.desc} : ${l.amount} €`).join('\n')}
   );
 }
 
-function Block({ title, block, text, updateText, recording, toggleRecord, children }) {
+function Block({ title, block, text, analyze, recording, toggleRecord, children }) {
   return (
     <>
       <section className="card">
         <h2>{title}</h2>
-        <textarea value={text} onChange={(e) => updateText(block, e.target.value)} />
+        <textarea value={text} onChange={(e) => analyze(block, e.target.value)} />
         <button className={recording === block ? 'recording' : 'primary'} onClick={() => toggleRecord(block)}>
           {recording === block ? '■ Arrêter' : '🎙 Activer la dictée'}
         </button>
