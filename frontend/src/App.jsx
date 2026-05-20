@@ -17,8 +17,8 @@ const vehicleLabels = {
   motorisation:  'Motorisation',
   mec:           'MEC / 1ère mise en circulation',
   immat:         'Immatriculation',
-  prixAchat:     "Prix d\u2019achat \u20AC",
-  cessionOdoo:   'Cession Odoo \u20AC',
+  prixAchat:     "Prix d’achat €",
+  cessionOdoo:   'Cession Odoo €',
   commercial:    'Réalisé par',
 };
 
