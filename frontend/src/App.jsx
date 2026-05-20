@@ -283,7 +283,8 @@ function App() {
           setLastTranscript(transcript);
 
           if (block === 'body' || block === 'cell') {
-            addDictatedLine(block, transcript);
+            const newLines = extractLines(transcript);
+            if (newLines.length) setData(d => ({ ...d, [block]: [...d[block], ...newLines] }));
         await analyze(block, transcribedText);
           } else {
             const next = `${texts[block] ? `${texts[block]}\n` : ''}${transcript}`;
