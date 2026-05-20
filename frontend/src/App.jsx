@@ -429,28 +429,7 @@ ${data.cell.map((l) => `- ${l.desc} : ${l.amount} €`).join('\n')}
           )}
 
           {lastTranscript && (
-            <section className="card transcript">
-              
-          )}
-
-          <div className="status">{status}</div>
-        </main>
-      </div>
-    </>
-  );
-}
-
-function Block({ title, block, text, analyze, recording, toggleRecord, children }) {
-  return (
-    <>
-      <section className="card">
-        <h2>{title}</h2>
-        <textarea value={text} onChange={(e) => analyze(block, e.target.value)} />
-        <button className={recording === block ? 'recording' : 'primary'} onClick={() => toggleRecord(block)}>
-          {recording === block ? '■ Arrêter' : '🎙 Activer la dictée'}
-        </button>
-        <span className="badge">Analyse automatique</span>
-      </section>
+            
       <section className="card">{children}</section>
     </>
   );
