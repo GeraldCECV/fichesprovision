@@ -1,28 +1,29 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const vehicleLabels = {
   marque: 'Marque',
-  modele: 'Modèle',
+  modele: 'ModÃ¨le',
   motorisation: 'Motorisation',
-  mec: 'MEC / 1ère mise en circulation',
+  mec: 'MEC / 1Ã¨re mise en circulation',
   immat: 'Immatriculation',
-  prixAchat: "Prix d'achat €",
-  cessionOdoo: 'Cession ODOO €',
-  commercial: 'Réalisé par'
+  prixAchat: "Prix d'achat â¬",
+  cessionOdoo: 'Cession ODOO â¬',
+  commercial: 'RÃ©alisÃ© par'
 };
 
 const mechanicsLabels = {
-  prepEsthetique: 'Prépa esthétique',
-  ct: 'Contrôle technique',
+  prepEsthetique: 'PrÃ©pa esthÃ©tique',
+  ct: 'ContrÃ´le technique',
   vidangeSimple: 'Vidange simple',
-  vidangeComplete: 'Vidange complète',
+  vidangeComplete: 'Vidange complÃ¨te',
   courroie: 'Courroie distribution',
   pneus: 'Pneus',
   batterie: 'Batterie moteur',
-  autresMeca: 'Autres méca €'
+  autresMeca: 'Autres mÃ©ca â¬'
 };
 
 const initialState = {
@@ -87,7 +88,7 @@ function extractLines(text) {
 function extractAmount(text) {
   const original = String(text || '').replace(/\s+/g, ' ').trim();
 
-  const numeric = original.match(/^(.*?)(\d[\d\s.]*)\s*(euros?|€)\s*$/i);
+  const numeric = original.match(/^(.*?)(\d[\d\s.]*)\s*(euros?{â¬)\s*$/i);
   if (numeric) {
     return {
       desc: numeric[1].trim().replace(/[,:;-]\s*$/, ''),
@@ -95,11 +96,11 @@ function extractAmount(text) {
     };
   }
 
-  if (!/euros?|€/i.test(original)) {
+  if (!/euros?|â¬/i.test(original)) {
     return { desc: original, amount: '' };
   }
 
-  const beforeEuro = original.replace(/euros?|€/gi, '').trim();
+  const beforeEuro = original.replace(/euros?|â¬/gi, '').trim();
   const directAmount = frenchNumberToInt(beforeEuro);
 
   if (directAmount !== null) {
@@ -129,7 +130,7 @@ function normalizeNumberText(text) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/-/g, ' ')
     .replace(/\bet\b/g, ' ')
-    .replace(/\bd['’]/g, ' ')
+    .replace(/\bd['â]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -208,7 +209,7 @@ function App() {
   const [data, setData] = useState(initialState);
   const [texts, setTexts] = useState({ vehicle: '', mechanics: '', body: '', cell: '' });
   const [recording, setRecording] = useState(null);
-  const [status, setStatus] = useState('Prêt.');
+  const [status, setStatus] = useState('PrÃªt.');
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
   const timers = useRef({});
@@ -217,7 +218,7 @@ function App() {
     if (!text.trim()) return;
     setStatus('Analyse GPT en cours...');
     try {
-      const res = await fetch(API_URL + '/api/analyze-full', {
+      const res = await fetch(`${API_URL}/api/analyze-full`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text })
@@ -237,6 +238,13 @@ function App() {
       setStatus('Erreur : ' + e.message);
     }
   }
+
+  function addDictatedLine(block, transcript) {
+    const lines = extractLines(transcript);
+    if (!lines.length) return;
+    setData((d) => ({ ...d, [block]: [...d[block], ...lines] }));
+  }
+
   async function toggleRecord(block) {
     if (recording === block) {
       recorderRef.current?.stop();
@@ -265,7 +273,7 @@ function App() {
       recorder.onstop = async () => {
         stream.getTracks().forEach((track) => track.stop());
         setRecording(null);
-        setStatus('Transcription en cours…');
+        setStatus('Transcription en coursâ¦');
 
         try {
           const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
@@ -274,39 +282,41 @@ function App() {
             : blob.type.includes('wav') ? 'wav'
             : 'webm';
 
-          const form = new FormData();
-          form.append('audio', blob, `audio.${ext}`);
+          const formData = new FormData();
+          formData.append('audio', blob, `audio.${ext}`);
 
-          const res = await fetch(`${API_URL}/api/transcribe`, { method: 'POST', body: form });
-          const json = await res.json();
-          if (!res.ok) throw new Error(json.error || 'Erreur transcription');
+          const trRes = await fetch(`${API_URL}/api/transcribe`, {
+            method: 'POST',
+            body: formData
+          });
+          const trJson = await trRes.json();
+          if (!trRes.ok) throw new Error(trJson.error || 'Erreur transcription');
 
-          const transcript = json.text || '';
+          const transcript = trJson.text || '';
 
           if (block === 'body' || block === 'cell') {
             addDictatedLine(block, transcript);
-        await analyze(block, transcript);
           } else {
-            const next = `${texts[block] ? `${texts[block]}\n` : ''}${transcript}`;
-            analyze(block, next);
-            setStatus('Transcription terminée.');
+            setTexts((t) => ({ ...t, [block]: transcript }));
+            await analyze(block, transcript);
           }
-        } catch (error) {
-          setStatus(error.message);
+
+          setStatus('');
+        } catch (e) {
+          setStatus('Erreur : ' + e.message);
         }
       };
 
       recorder.start();
       setRecording(block);
-      setStatus('Enregistrement en cours… Clique sur Arrêter à la fin de la phrase.');
-    } catch (error) {
-      setStatus(`Micro indisponible : ${error.message}`);
+      setStatus('Enregistrement en coursâ¦');
+    } catch (e) {
+      setStatus('Erreur micro : ' + e.message);
     }
   }
 
   async function generateExcel() {
-    setStatus('Génération Excel en cours…');
-
+    setStatus('GÃ©nÃ©ration du fichier Excelâ¦');
     try {
       const res = await fetch(`${API_URL}/api/generate-excel`, {
         method: 'POST',
@@ -315,120 +325,73 @@ function App() {
       });
 
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error(json.error || 'Erreur génération Excel');
+        const err = await res.json();
+        throw new Error(err.error || 'Erreur gÃ©nÃ©ration');
       }
 
       const blob = await res.blob();
-      const v = data.vehicle;
-      const name = `${v.marque}-${v.modele}-${v.immat}.xlsx`.replace(/[\/\\:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
+      const name = `${data.vehicle.marque}-${data.vehicle.modele}-${data.vehicle.immat}.xlsx`.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = name;
       a.click();
       URL.revokeObjectURL(url);
-      setStatus('Fichier Excel généré.');
-    } catch (error) {
-      setStatus(error.message);
+      setStatus('Fichier tÃ©lÃ©chargÃ©.');
+    } catch (e) {
+      setStatus('Erreur : ' + e.message);
     }
   }
 
-  const summary = useMemo(() => {
-    const v = data.vehicle;
-    const m = data.mechanics;
-
-    return `🚐 CARACTÉRISTIQUES VÉHICULES
-Marque / Modèle : ${v.marque} ${v.modele}
-Motorisation : ${v.motorisation}
-Immatriculation : ${v.immat}
-MEC : ${v.mec}
-Prix d'achat : ${v.prixAchat} €
-Cession ODOO : ${v.cessionOdoo} €
-Réalisé par : ${v.commercial}
-
-🔧 MÉCANIQUE
-${Object.entries(mechanicsLabels).map(([k, label]) => m[k] && m[k] !== 'NON' && m[k] !== '0' ? `- ${label} : ${m[k]}` : '').filter(Boolean).join('\n')}
-
-🎨 CARROSSERIE
-${data.body.map((l) => `- ${l.desc} : ${l.amount} €`).join('\n')}
-
-🏠 CELLULE
-${data.cell.map((l) => `- ${l.desc} : ${l.amount} €`).join('\n')}
-
-📦 DIVERS
-- Pack Fraicheur
-- Test d'humidité`;
-  }, [data]);
-
   return (
     <>
-      <header>
-        <img src="/logo_ypocamp.jpeg" />
-        <div>
-          <h1>Génération des fiches de provision VO</h1>
-        </div>
-      </header>
-
+      <div>
+        <h1>GÃ©nÃ©ration des fiches de provision VO</h1>
+        <p>Groupe Ypo Ouest / Ypocamp</p>
+      </div>
       <div className="layout">
-        <aside>
-          <button className={active === 'vehicle' ? 'active' : ''} onClick={() => setActive('vehicle')}>1. Caractéristiques Véhicules</button>
-          <button className={active === 'mechanics' ? 'active' : ''} onClick={() => setActive('mechanics')}>2. Mécanique</button>
-          <button className={active === 'body' ? 'active' : ''} onClick={() => setActive('body')}>3. Carrosserie</button>
-          <button className={active === 'cell' ? 'active' : ''} onClick={() => setActive('cell')}>4. Cellule</button>
-          <button className={active === 'validation' ? 'active' : ''} onClick={() => setActive('validation')}>5. Validation</button>
-        </aside>
-
+        <nav>
+          {['vehicle', 'mechanics', 'body', 'cell'].map((b) => (
+            <button
+              key={b}
+              className={active === b ? 'active' : ''}
+              onClick={() => setActive(b)}
+            >
+              {b === 'vehicle' ? 'VÃ©hicule' : b === 'mechanics' ? 'MÃ©canique' : b === 'body' ? 'Carrosserie' : 'Cellule'}
+            </button>
+          ))}
+        </nav>
         <main>
-          {active === 'vehicle' && (
-            <Block title="Caractéristiques Véhicules" block="vehicle" text={texts.vehicle} analyze={analyze} recording={recording} toggleRecord={toggleRecord}>
-              <Grid labels={vehicleLabels} values={data.vehicle} onChange={(k, v) => setData((d) => ({ ...d, vehicle: { ...d.vehicle, [k]: v } }))} />
-            </Block>
-          )}
+          {active === 'vehicle' && <Block title="CaractÃ©ristiques VÃ©hicules" block="vehicle" text={texts.vehicle} analyze={analyze} recording={recording} toggleRecord={toggleRecord}><Grid labels={vehicleLabels} values={data.vehicle} onChange={(k, v) => setData((d) => ({ ...d, vehicle: { ...d.vehicle, [k]: v } }))} /></Block>}
+          {active === 'mechanics' && <Block title="MÃ©canique" block="mechanics" text={texts.mechanics} analyze={analyze} recording={recording} toggleRecord={toggleRecord}><Grid labels={mechanicsLabels} values={data.mechanics} onChange={(k, v) => setData((d) => ({ ...d, mechanics: { ...d.mechanics, [k]: v } }))} /></Block>}
+          {active === 'body' && <Lines title="Carrosserie" block="body" text={texts.body} recording={recording} toggleRecord={toggleRecord} lines={data.body} setData={setData} help="DictÃ©e continue : la ligne change automatiquement aprÃ¨s chaque montant." />}
+          {active === 'cell' && <Lines title="Cellule" block="cell" text={texts.cell} recording={recording} toggleRecord={toggleRecord} lines={data.cell} setData={setData} help="DictÃ©e continue : la ligne change automatiquement aprÃ¨s chaque montant." />}
+          <section className="card">
+            <button className="primary" onClick={generateExcel}>GÃ©nÃ©rer le fichier Excel</button>
+          </section>
+          <div className="status">{status}</div>
+        </main>
+      </div>
+    </>
+  );
+}
 
-          {active === 'mechanics' && (
-            <Block title="Mécanique" block="mechanics" text={texts.mechanics} analyze={analyze} recording={recording} toggleRecord={toggleRecord}>
-              <Grid labels={mechanicsLabels} values={data.mechanics} onChange={(k, v) => setData((d) => ({ ...d, mechanics: { ...d.mechanics, [k]: v } }))} />
-            </Block>
-          )}
-
-          {active === 'body' && (
-            <Lines
-              title="Carrosserie"
-              block="body"
-              text={texts.body}
-              recording={recording}
-              toggleRecord={toggleRecord}
-              lines={data.body}
-              setData={setData}
-              help="Dictée continue : la ligne change automatiquement après chaque montant."
-            />
-          )}
-
-          {active === 'cell' && (
-            <Lines
-              title="Cellule"
-              block="cell"
-              text={texts.cell}
-              recording={recording}
-              toggleRecord={toggleRecord}
-              lines={data.cell}
-              setData={setData}
-              help="Dictée continue : la ligne change automatiquement après chaque montant."
-            />
-          )}
-
-          {active === 'validation' && (
-            <section className="card">
-              <h2>Validation finale</h2>
-              <pre>{summary}</pre>
-              <button className="primary" onClick={generateExcel}>✅ Générer le fichier Excel</button>
-            </section>
-          )}
-
-            
+function Block({ title, block, text, analyze, recording, toggleRecord, children }) {
+  return (
+    <>
+      <section className="card">
+        <h2>{title}</h2>
+        <textarea
+          value={text}
+          onChange={(e) => analyze(block, e.target.value)}
+          placeholder="Texte transcrit..."
+        />
+        <button className="primary" onClick={() => toggleRecord(block)}>
+          {recording === block ? 'â  ArrÃªter' : 'ð¡ Activer la dictÃ©e'}
+        </button>
+        <span className="badge">Analyse automatique</span>
+      </section>
       <section className="card">{children}</section>
-      </main>
     </>
   );
 }
@@ -437,10 +400,14 @@ function Grid({ labels, values, onChange }) {
   return (
     <div className="grid">
       {Object.entries(labels).map(([k, label]) => (
-        <label key={k}>
-          <span>{label}</span>
-          <input value={values[k] || ''} onChange={(e) => onChange(k, e.target.value)} />
-        </label>
+        <div key={k}>
+          <label>{label.toUpperCase()}</label>
+          <input
+            type="text"
+            value={values[k] || ''}
+            onChange={(e) => onChange(k, e.target.value)}
+          />
+        </div>
       ))}
     </div>
   );
@@ -448,47 +415,40 @@ function Grid({ labels, values, onChange }) {
 
 function Lines({ title, block, text, recording, toggleRecord, lines, setData, help }) {
   function add() {
-    setData((d) => ({ ...d, [block]: [...d[block], { id: String(Date.now()), desc: '', amount: '' }] }));
+    setData((d) => ({ ...d, [block]: [...d[block], { id: `${Date.now()}-${Math.random()}`, desc: '', amount: '' }] }));
   }
-
-  function update(index, key, value) {
-    setData((d) => ({ ...d, [block]: d[block].map((line, i) => i === index ? { ...line, [key]: value } : line) }));
+  function update(id, field, value) {
+    setData((d) => ({ ...d, [block]: d[block].map((l) => l.id === id ? { ...l, [field]: value } : l) }));
   }
-
-  function remove(index) {
-    setData((d) => ({ ...d, [block]: d[block].filter((_, i) => i !== index) }));
+  function remove(id) {
+    setData((d) => ({ ...d, [block]: d[block].filter((l) => l.id !== id) }));
   }
-
+  function filenameFromHeader(t) {
+    return String(t || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
+  }
   return (
     <>
       <section className="card">
         <h2>{title}</h2>
-        <p className="help">{help}</p>
-        <textarea readOnly value={text} placeholder="Historique des dictées ligne par ligne" />
-        <button className={recording === block ? 'recording' : 'primary'} onClick={() => toggleRecord(block)}>
-          {recording === block ? '■ Arrêter la dictée' : '🎙 Dicter les travaux'}
+        {help && <p className="help">{help}</p>}
+        <textarea value={text} readOnly placeholder="Transcription accumulÃ©e..." />
+        <button className="primary" onClick={() => toggleRecord(block)}>
+          {recording === block ? 'â  ArrÃªter' : 'ð¡ Activer la dictÃ©e'}
         </button>
-        <button onClick={add}>+ Ajouter ligne manuelle</button>
-        <span className="badge">Une ligne après chaque montant</span>
       </section>
-
       <section className="card">
-        {lines.map((line, i) => (
-          <div className="line" key={line.id || i}>
-            <input placeholder="Description" value={line.desc || ''} onChange={(e) => update(i, 'desc', e.target.value)} />
-            <input placeholder="€" value={line.amount || ''} onChange={(e) => update(i, 'amount', e.target.value)} />
-            <button onClick={() => remove(i)}>×</button>
-          </div>
-        ))}
+          {lines.map((line, i) => (
+            <div className="line" key={line.id || i}>
+              <span>{filenameFromHeader(title)}{String(i + 1).padStart(2, '0')}</span>
+              <input type="text" value={line.desc} onChange={(e) => update(line.id, 'desc', e.target.value)} placeholder="Description" />
+              <input type="number" value={line.amount} onChange={(e) => update(line.id, 'amount', e.target.value)} placeholder="Montant" />
+              <button onClick={() => remove(line.id)}>æ¶</button>
+            </div>
+          ))}
+        <button onClick={add}>+ Ajouter ligne</button>
       </section>
     </>
   );
 }
 
-function filenameFromHeader(header) {
-  return header?.match(/filename="([^"]+)"/)?.[1] || null;
-}
-
 createRoot(document.getElementById('root')).render(<App />);
-
-// build fix
