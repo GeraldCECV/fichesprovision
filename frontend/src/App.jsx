@@ -162,6 +162,7 @@ function App() {
   return (
     <>
       <header>
+        <img src="/logo_ypocamp.jpeg" alt="Ypocamp" style={{height:'48px',marginBottom:'8px'}} />
         <h1>Génération des fiches de provision VO</h1>
         <p>Groupe Ypo Ouest / Ypocamp</p>
       </header>
