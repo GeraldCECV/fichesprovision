@@ -287,7 +287,7 @@ function App() {
 
           if (block === 'body' || block === 'cell') {
             addDictatedLine(block, transcript);
-        await analyze(block, transcribedText);
+        await analyze(block, transcript);
           } else {
             const next = `${texts[block] ? `${texts[block]}\n` : ''}${transcript}`;
             analyze(block, next);
@@ -430,9 +430,7 @@ ${data.cell.map((l) => `- ${l.desc} : ${l.amount} €`).join('\n')}
 
           {lastTranscript && (
             <section className="card transcript">
-              <h2>Dernière transcription</h2>
-              <p>{lastTranscript}</p>
-            </section>
+              
           )}
 
           <div className="status">{status}</div>
