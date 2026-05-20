@@ -480,6 +480,7 @@ function Lines({ title, block, text, recording, toggleRecord, lines, setData, he
           </div>
         ))}
       </section>
+      </main>
     </>
   );
 }
