@@ -40,7 +40,8 @@ function parseDate(text) {
   const year = n.match(/(19|20)\d{2}/)?.[0];
   return year ? `01/01/${year}` : '';
 }
-'Volkswagen', vw: 'Volkswagen',
+const BRANDS = {
+  volkswagen: 'Volkswagen', vw: 'Volkswagen',
   // W
   weinsberg: 'Weinsberg',
   westfalia: 'Westfalia',
