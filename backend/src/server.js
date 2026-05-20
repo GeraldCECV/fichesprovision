@@ -80,7 +80,7 @@ Structure JSON attendue :
 
 RÃ¨gles :
 - Si une information n'est pas mentionnÃ©e, laisse le champ vide "" sauf pour les OUI/NON (mettre NON par dÃ©faut) et les montants (mettre 0).
-- prepEsthetique est NON par defaut. Mettre OUI seulement si le commercial dit explicitement "prepa", "nettoyage", "esthetique" ou similaire.
+- prepEsthetique : NON par defaut, exactement comme ct, vidangeSimple, courroie, batterie. Mettre OUI uniquement si la dictee mentionne "prepa", "preparation esthetique", "nettoyage" ou equivalent.
 - Les travaux carrosserie et cellule sont des listes (max 6 pour body, max 14 pour cell).
 - Convertis les nombres Ã©crits en lettres : "soixante quatorze" â 74, "deux mille" â 2000.
 - Pour la motorisation, identifie le porteur (Fiat Ducato, Peugeot Boxer, etc.) et la puissance si mentionnÃ©e.`;
@@ -95,10 +95,6 @@ RÃ¨gles :
     const raw = completion.choices[0]?.message?.content || '{}';
     const clean = raw.replace(/```json|```/g, '').trim();
     const data = JSON.parse(clean);
-    // Forcer prepEsthetique à NON par défaut
-    if (data.mechanics && data.mechanics.prepEsthetique === 'OUI') {
-      data.mechanics.prepEsthetique = 'NON';
-    }
 
     // Ajouter des IDs aux lignes body/cell
     if (data.body) data.body = data.body.map(l => ({ ...l, id: `${Date.now()}-${Math.random()}` }));
