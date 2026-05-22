@@ -135,7 +135,7 @@ function App() {
   }
 
   async function generateExcel() {
-    setStatus('G\u00e9n\u00e9ration du fichier\u2026');
+    setStatus('Génération du fichier\u2026');
     try {
       const res = await fetch(`${API_URL}/api/generate-excel`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -158,7 +158,7 @@ function App() {
       <header>
         <img src="/logo_ypocamp.jpeg" alt="Ypocamp" />
         <div className="header-sep" />
-        <h1>G\u00e9n\u00e9ration des fiches de provision VO</h1>
+        <h1>Génération des fiches de provision VO</h1>
       </header>
       <div className="layout">
         <aside>
