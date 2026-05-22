@@ -1,528 +1,318 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
+const STEPS = [
+  { id: 'vehicle',    label: 'V\u00e9hicule',     icon: '\uD83D\uDDC5' },
+  { id: 'mechanics',  label: 'M\u00e9canique',    icon: '\uD83D\uDD27' },
+  { id: 'body',       label: 'Carrosserie',  icon: '\uD83D\uDD17' },
+  { id: 'cell',       label: 'Cellule',      icon: '\uD83C\uDF00' },
+  { id: 'validation', label: 'Validation',   icon: '\u2705' },
+];
+
 const vehicleLabels = {
-  marque: 'Marque',
-  modele: 'Modèle',
-  motorisation: 'Motorisation',
-  mec: 'MEC / 1ère mise en circulation',
-  immat: 'Immatriculation',
-  prixAchat: "Prix d'achat €",
-  cessionOdoo: 'Cession ODOO €',
-  commercial: 'Réalisé par'
+  marque:       'Marque',
+  modele:        'Mod\u00e8le',
+  motorisation:  'Motorisation',
+  mec:           'MEC / 1\u00e8re mise en circulation',
+  immat:         'Immatriculation',
+  prixAchat:     "Prix d\u2019achat \u20AC",
+  cessionOdoo:   'Cession Odoo \u20AC',
+  commercial:    'R\u00e9alis\u00e9 par',
 };
 
 const mechanicsLabels = {
-  prepEsthetique: 'Prépa esthétique',
-  ct: 'Contrôle technique',
-  vidangeSimple: 'Vidange simple',
-  vidangeComplete: 'Vidange complète',
-  courroie: 'Courroie distribution',
-  pneus: 'Pneus',
-  batterie: 'Batterie moteur',
-  autresMeca: 'Autres méca €'
+  prepEsthetique: 'Pr\u00e9pa esth\u00e9tique',
+  ct:             'Contr\u00f4le technique',
+  vidangeSimple:  'Vidange simple',
+  vidangeComplete:'Vidange compl\u00e8te',
+  courroie:       'Courroie distribution',
+  pneus:          'Pneus',
+  batterie:       'Batterie moteur',
 };
 
 const initialState = {
-  vehicle: Object.fromEntries(Object.keys(vehicleLabels).map((k) => [k, ''])),
+  vehicle: Object.fromEntries(Object.keys(vehicleLabels).map(k => [k, ''])),
   mechanics: {
-    prepEsthetique: 'NON',
-    ct: 'NON',
-    vidangeSimple: 'NON',
-    vidangeComplete: 'NON',
-    courroie: 'NON',
-    pneus: 'NON',
-    batterie: 'NON',
-    autresMeca: '0'
+    prepEsthetique: 'NON', ct: 'NON', vidangeSimple: 'NON',
+    vidangeComplete: 'NON', courroie: 'NON', pneus: 'NON',
+    batterie: 'NON', autresMeca: '0',
   },
   body: [],
-  cell: []
+  cell: [],
 };
 
 function extractLines(text) {
   const raw = String(text || '').replace(/\s+/g, ' ').trim();
   if (!raw) return [];
-
-  const chunks = raw.split(/[,;\n.]+/).map((s) => s.trim()).filter(Boolean);
+  const chunks = raw.split(/[,;\n.]+/).map(s => s.trim()).filter(Boolean);
   const lines = [];
-  let pendingParts = [];
-
+  let pending = [];
   for (const chunk of chunks) {
-    const extracted = extractAmount(chunk);
-
-    if (extracted.amount) {
-      if (extracted.desc) pendingParts.push(extracted.desc);
-
-      const desc = pendingParts.join(' ').trim();
-
-      if (desc) {
-        lines.push({
-          id: `${Date.now()}-${Math.random()}`,
-          desc,
-          amount: extracted.amount
-        });
-      } else if (lines.length) {
-        lines[lines.length - 1].amount = extracted.amount;
-      }
-
-      pendingParts = [];
-    } else {
-      pendingParts.push(chunk);
-    }
+    const m = chunk.match(/^(.*?)(\d[\d\s.]*)[\s]*(euros?|EUR|\u20AC)\s*$/i);
+    if (m) {
+      if (m[1]) pending.push(m[1].trim().replace(/[,:;-]\s*$/, ''));
+      const desc = pending.join(' ').trim();
+      const amount = m[2].replace(/\D/g, '');
+      if (desc) lines.push({ id: `${Date.now()}-${Math.random()}`, desc, amount });
+      else if (lines.length) lines[lines.length - 1].amount = amount;
+      pending = [];
+    } else { pending.push(chunk); }
   }
-
-  if (pendingParts.length) {
-    lines.push({
-      id: `${Date.now()}-${Math.random()}`,
-      desc: pendingParts.join(' ').trim(),
-      amount: ''
-    });
-  }
-
+  if (pending.length) lines.push({ id: `${Date.now()}-${Math.random()}`, desc: pending.join(' ').trim(), amount: '' });
   return lines;
 }
 
-function extractAmount(text) {
-  const original = String(text || '').replace(/\s+/g, ' ').trim();
-
-  const numeric = original.match(/^(.*?)(\d[\d\s.]*)\s*(euros?|€)\s*$/i);
-  if (numeric) {
-    return {
-      desc: numeric[1].trim().replace(/[,:;-]\s*$/, ''),
-      amount: numeric[2].replace(/\D/g, '')
-    };
-  }
-
-  if (!/euros?|€/i.test(original)) {
-    return { desc: original, amount: '' };
-  }
-
-  const beforeEuro = original.replace(/euros?|€/gi, '').trim();
-  const directAmount = frenchNumberToInt(beforeEuro);
-
-  if (directAmount !== null) {
-    return { desc: '', amount: String(directAmount) };
-  }
-
-  const words = beforeEuro.split(/\s+/);
-  for (let i = 1; i < words.length; i++) {
-    const maybeAmount = words.slice(i).join(' ');
-    const value = frenchNumberToInt(maybeAmount);
-
-    if (value !== null) {
-      return {
-        desc: words.slice(0, i).join(' ').trim().replace(/[,:;-]\s*$/, ''),
-        amount: String(value)
-      };
-    }
-  }
-
-  return { desc: original, amount: '' };
-}
-
-function normalizeNumberText(text) {
-  return String(text || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/-/g, ' ')
-    .replace(/\bet\b/g, ' ')
-    .replace(/\bd['’]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function frenchNumberToInt(text) {
-  const n = normalizeNumberText(text);
-  if (!n) return null;
-  if (/^\d+$/.test(n)) return Number(n);
-
-  const units = {
-    zero: 0, un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5,
-    six: 6, sept: 7, huit: 8, neuf: 9, dix: 10, onze: 11, douze: 12,
-    treize: 13, quatorze: 14, quinze: 15, seize: 16
-  };
-
-  const tens = {
-    vingt: 20, trente: 30, quarante: 40, cinquante: 50, soixante: 60
-  };
-
-  const special = {
-    'dix sept': 17, 'dix huit': 18, 'dix neuf': 19,
-    'soixante dix': 70, 'soixante onze': 71, 'soixante douze': 72,
-    'soixante treize': 73, 'soixante quatorze': 74, 'soixante quinze': 75,
-    'soixante seize': 76, 'soixante dix sept': 77, 'soixante dix huit': 78,
-    'soixante dix neuf': 79,
-    'quatre vingt': 80, 'quatre vingts': 80, 'quatre vingt dix': 90,
-    'quatre vingt onze': 91, 'quatre vingt douze': 92, 'quatre vingt treize': 93,
-    'quatre vingt quatorze': 94, 'quatre vingt quinze': 95, 'quatre vingt seize': 96,
-    'quatre vingt dix sept': 97, 'quatre vingt dix huit': 98, 'quatre vingt dix neuf': 99
-  };
-
-  if (special[n] !== undefined) return special[n];
-  if (units[n] !== undefined) return units[n];
-  if (tens[n] !== undefined) return tens[n];
-
-  const words = n.split(' ');
-  let total = 0;
-  let current = 0;
-  let seen = false;
-
-  for (let i = 0; i < words.length; i++) {
-    const w = words[i];
-
-    if (units[w] !== undefined) {
-      current += units[w];
-      seen = true;
-    } else if (tens[w] !== undefined) {
-      current += tens[w];
-      seen = true;
-    } else if (w === 'cent' || w === 'cents') {
-      if (current === 0) current = 1;
-      current *= 100;
-      seen = true;
-    } else if (w === 'mille') {
-      if (current === 0) current = 1;
-      total += current * 1000;
-      current = 0;
-      seen = true;
-    } else {
-      const rest = words.slice(i).join(' ');
-      if (special[rest] !== undefined) {
-        current += special[rest];
-        seen = true;
-        break;
-      }
-      return null;
-    }
-  }
-
-  return seen ? total + current : null;
-}
-
-
 function App() {
   const [active, setActive] = useState('vehicle');
-  const [data, setData] = useState(initialState);
-  const [texts, setTexts] = useState({ vehicle: '', mechanics: '', body: '', cell: '' });
-  const [lastTranscript, setLastTranscript] = useState('');
+  const [data, setData]     = useState(initialState);
+  const [texts, setTexts]   = useState({ vehicle: '', mechanics: '', body: '', cell: '' });
   const [recording, setRecording] = useState(null);
-  const [status, setStatus] = useState('Prêt.');
+  const [status, setStatus] = useState('');
   const recorderRef = useRef(null);
-  const chunksRef = useRef([]);
-  const timers = useRef({});
+  const chunksRef   = useRef([]);
+  const stepIndex = STEPS.findIndex(s => s.id === active);
 
   async function analyze(block, text) {
     if (!text.trim()) return;
-    setStatus('Analyse GPT en cours...');
+    setStatus('Analyse en cours\u2026');
     try {
-      const res = await fetch(API_URL + '/api/analyze-full', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
+      const res = await fetch(`${API_URL}/api/analyze-full`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
       });
       const json = await res.json();
       if (json.error) { setStatus('Erreur : ' + json.error); return; }
       const d = json.data || {};
-      // Filtre les valeurs vides pour ne pas ecraser les donnees existantes
-      const nonEmpty = (obj) => obj ? Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '' && v !== '0')) : {};
+      const nonEmpty = obj => obj ? Object.fromEntries(
+        Object.entries(obj).filter(([_v, v]) => v !== null && v !== undefined && String(v).trim() !== '' && v !== '0')
+      ) : {};
       setData(prev => ({
         ...prev,
-        vehicle: { ...prev.vehicle, ...nonEmpty(d.vehicle) },
+        vehicle:   { ...prev.vehicle,   ...nonEmpty(d.vehicle)   },
         mechanics: { ...prev.mechanics, ...nonEmpty(d.mechanics) },
-        body: (d.body && d.body.length > 0) ? d.body : prev.body,
-        cell: (d.cell && d.cell.length > 0) ? d.cell : prev.cell,
+        body: d.body && d.body.length ? d.body : prev.body,
+        cell: d.cell && d.cell.length ? d.cell : prev.cell,
       }));
       setStatus('');
-    } catch (e) {
-      setStatus('Erreur : ' + e.message);
-    }
+    } catch (e) { setStatus('Erreur : ' + e.message); }
   }
-  async function toggleRecord(block) {
-    if (recording === block) {
-      recorderRef.current?.stop();
-      return;
-    }
 
+  async function toggleRecord(block) {
+    if (recording === block) { recorderRef.current?.stop(); return; }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      const preferredTypes = [
-        'audio/webm;codecs=opus',
-        'audio/webm',
-        'audio/mp4',
-        'audio/ogg;codecs=opus'
-      ];
-      const mimeType = preferredTypes.find((type) => MediaRecorder.isTypeSupported(type)) || '';
-
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      recorderRef.current = recorder;
+      const mime = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus']
+                     .find(t => MediaRecorder.isTypeSupported(t)) || '';
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      recorderRef.current = rec;
       chunksRef.current = [];
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size) chunksRef.current.push(event.data);
-      };
-
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((track) => track.stop());
-        setRecording(null);
-        setStatus('Transcription en cours…');
-
+      rec.ondataavailable = e => { if (e.data.size) chunksRef.current.push(e.data); };
+      rec.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        setRecording(null); setStatus('Transcription\u2026');
         try {
-          const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
-          const ext = blob.type.includes('mp4') ? 'mp4'
-            : blob.type.includes('ogg') ? 'ogg'
-            : blob.type.includes('wav') ? 'wav'
-            : 'webm';
-
-          const form = new FormData();
-          form.append('audio', blob, `audio.${ext}`);
-
-          const res = await fetch(`${API_URL}/api/transcribe`, { method: 'POST', body: form });
-          const json = await res.json();
-          if (!res.ok) throw new Error(json.error || 'Erreur transcription');
-
-          const transcript = json.text || '';
-          setLastTranscript(transcript);
-
+          const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
+          const ext = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
+          const fd = new FormData();
+          fd.append('audio', blob, `audio.${ext}`);
+          const tr = await fetch(`${API_URL}/api/transcribe`, { method: 'POST', body: fd });
+          const trj = await tr.json();
+          if (!tr.ok) throw new Error(trj.error || 'Erreur transcription');
+          const transcript = trj.text || '';
+          setTexts(t => ({ ...t, [block]: transcript }));
           if (block === 'body' || block === 'cell') {
-            const newLines = extractLines(transcript);
-            if (newLines.length) setData(d => ({ ...d, [block]: [...d[block], ...newLines] }));
-        await analyze(block, transcribedText);
-          } else {
-            const next = `${texts[block] ? `${texts[block]}\n` : ''}${transcript}`;
-            analyze(block, next);
-            setStatus('Transcription terminée.');
-          }
-        } catch (error) {
-          setStatus(error.message);
-        }
+            const nl = extractLines(transcript);
+            if (nl.length) setData(d => ({ ...d, [block]: [...d[block], ...nl] }));
+            setStatus('');
+          } else { await analyze(block, transcript); }
+        } catch (e) { setStatus('Erreur : ' + e.message); }
       };
-
-      recorder.start();
-      setRecording(block);
-      setStatus('Enregistrement en cours… Clique sur Arrêter à la fin de la phrase.');
-    } catch (error) {
-      setStatus(`Micro indisponible : ${error.message}`);
-    }
+      rec.start(); setRecording(block); setStatus('Enregistrement\u2026');
+    } catch (e) { setStatus('Erreur micro : ' + e.message); }
   }
 
   async function generateExcel() {
-    setStatus('Génération Excel en cours…');
-
+    setStatus('G\u00e9n\u00e9ration du fichier\u2026');
     try {
       const res = await fetch(`${API_URL}/api/generate-excel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
       });
-
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error(json.error || 'Erreur génération Excel');
-      }
-
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
       const blob = await res.blob();
-      const v = data.vehicle;
-      const name = `${v.marque}-${v.modele}-${v.immat}.xlsx`.replace(/[\/\\:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
+      const name = `${data.vehicle.marque}-${data.vehicle.modele}-${data.vehicle.immat}.xlsx`
+        .replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = name;
-      a.click();
+      a.href = url; a.download = name; a.click();
       URL.revokeObjectURL(url);
-      setStatus('Fichier Excel généré.');
-    } catch (error) {
-      setStatus(error.message);
-    }
+      setStatus('Fichier t\u00e9l\u00e9charg\u00e9.');
+    } catch (e) { setStatus('Erreur : ' + e.message); }
   }
 
-  const summary = useMemo(() => {
-    const v = data.vehicle;
-    const m = data.mechanics;
-
-    return `🚐 CARACTÉRISTIQUES VÉHICULES
-Marque / Modèle : ${v.marque} ${v.modele}
-Motorisation : ${v.motorisation}
-Immatriculation : ${v.immat}
-MEC : ${v.mec}
-Prix d'achat : ${v.prixAchat} €
-Cession ODOO : ${v.cessionOdoo} €
-Réalisé par : ${v.commercial}
-
-🔧 MÉCANIQUE
-${Object.entries(mechanicsLabels).map(([k, label]) => m[k] && m[k] !== 'NON' && m[k] !== '0' ? `- ${label} : ${m[k]}` : '').filter(Boolean).join('\n')}
-
-🎨 CARROSSERIE
-${data.body.map((l) => `- ${l.desc} : ${l.amount} €`).join('\n')}
-
-🏠 CELLULE
-${data.cell.map((l) => `- ${l.desc} : ${l.amount} €`).join('\n')}
-
-📦 DIVERS
-- Pack Fraicheur
-- Test d'humidité`;
-  }, [data]);
-
   return (
-    <>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <header>
-        <img src="/logo_ypocamp.jpeg" />
-        <div>
-          <h1>Génération des fiches de provision VO</h1>
-        </div>
+        <img src="/logo_ypocamp.jpeg" alt="Ypocamp" />
+        <div className="header-sep" />
+        <h1>G\u00e9n\u00e9ration des fiches de provision VO</h1>
       </header>
-
       <div className="layout">
         <aside>
-          <button className={active === 'vehicle' ? 'active' : ''} onClick={() => setActive('vehicle')}>1. Caractéristiques Véhicules</button>
-          <button className={active === 'mechanics' ? 'active' : ''} onClick={() => setActive('mechanics')}>2. Mécanique</button>
-          <button className={active === 'body' ? 'active' : ''} onClick={() => setActive('body')}>3. Carrosserie</button>
-          <button className={active === 'cell' ? 'active' : ''} onClick={() => setActive('cell')}>4. Cellule</button>
-          <button className={active === 'validation' ? 'active' : ''} onClick={() => setActive('validation')}>5. Validation</button>
+          <p className="nav-label">Saisie</p>
+          {STEPS.map((s, i) => (
+            <button key={s.id}
+              className={active === s.id ? 'active' : stepIndex > i ? 'done' : ''}
+              onClick={() => setActive(s.id)}>
+              <span className="step-num">{stepIndex > i ? '\u2713' : i + 1}</span>
+              {s.label}
+            </button>
+          ))}
         </aside>
-
         <main>
-          {active === 'vehicle' && (
-            <Block title="Caractéristiques Véhicules" block="vehicle" text={texts.vehicle} analyze={analyze} recording={recording} toggleRecord={toggleRecord}>
-              <Grid labels={vehicleLabels} values={data.vehicle} onChange={(k, v) => setData((d) => ({ ...d, vehicle: { ...d.vehicle, [k]: v } }))} />
-            </Block>
-          )}
-
-          {active === 'mechanics' && (
-            <Block title="Mécanique" block="mechanics" text={texts.mechanics} analyze={analyze} recording={recording} toggleRecord={toggleRecord}>
-              <Grid labels={mechanicsLabels} values={data.mechanics} onChange={(k, v) => setData((d) => ({ ...d, mechanics: { ...d.mechanics, [k]: v } }))} />
-            </Block>
-          )}
-
-          {active === 'body' && (
-            <Lines
-              title="Carrosserie"
-              block="body"
-              text={texts.body}
-              recording={recording}
-              toggleRecord={toggleRecord}
-              lines={data.body}
-              setData={setData}
-              help="Dictée continue : la ligne change automatiquement après chaque montant."
-            />
-          )}
-
-          {active === 'cell' && (
-            <Lines
-              title="Cellule"
-              block="cell"
-              text={texts.cell}
-              recording={recording}
-              toggleRecord={toggleRecord}
-              lines={data.cell}
-              setData={setData}
-              help="Dictée continue : la ligne change automatiquement après chaque montant."
-            />
-          )}
-
-          {active === 'validation' && (
-            <section className="card">
-              <h2>Validation finale</h2>
-              <pre>{summary}</pre>
-                        <div className="recap">
-            <h3>Récapitulatif</h3>
-            <div className="recap-grid">
+          {active === 'vehicle' && (<>
+            <p className="page-title">Caract\u00e9ristiques v\u00e9hicule</p>
+            <p className="page-sub">Dictez ou saisissez les informations du v\u00e9hicule</p>
+            <DicteeBlock block="vehicle" text={texts.vehicle} recording={recording} onRecord={toggleRecord} />
+            <div className="card"><div className="grid">
               {Object.entries(vehicleLabels).map(([k, label]) => (
-                data.vehicle[k] ? <div key={k}><strong>{label}</strong> : {data.vehicle[k]}</div> : null
-              ))}
+                <div key={k} className="field">
+                  <label>{label.toUpperCase()}</label>
+                  <input type="text" value={data.vehicle[k] || ''}
+                    onChange={e => setData(d => ({ ...d, vehicle: { ...d.vehicle, [k]: e.target.value } }))} />
+                </div>))}
+            </div></div></>)}
+          {active === 'mechanics' && (<>
+            <p className="page-title">M\u00e9canique</p>
+            <p className="page-sub">Dictez les travaux m\u00e9caniques \u00e0 effectuer</p>
+            <DicteeBlock block="mechanics" text={texts.mechanics} recording={recording} onRecord={toggleRecord} />
+            <div className="card"><div className="meca-grid">
+              {Object.entries(mechanicsLabels).map(([k, label]) => (
+                <div key={k} className="meca-row">
+                  <span className="meca-label">{label}</span>
+                  <span className={data.mechanics[k] === 'OUI' ? 'badge-oui' : 'badge-non'}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setData(d => ({ ...d, mechanics: { ...d.mechanics, [k]: d.mechanics[k] === 'OUI' ? 'NON' : 'OUI' } }))}>
+                    {data.mechanics[k] === 'OUI' ? 'OUI' : 'NON'}
+                  </span>
+                </div>))}
+              <div className="meca-row" style={{ gridColumn: 'span 2' }}>
+                <span className="meca-label">Autres m\u00e9ca (\u20AC)</span>
+                <input type="number" className="meca-input"
+                  value={data.mechanics.autresMeca || '0'}
+                  onChange={e => setData(d => ({ ...d, mechanics: { ...d.mechanics, autresMeca: e.target.value } }))} />
+              </div>
+            </div></div></>)}
+          {active === 'body' && (<>
+            <p className="page-title">Carrosserie</p>
+            <p className="page-sub">Dictez les travaux de carrosserie ligne par ligne</p>
+            <LinesBlock block="body" text={texts.body} prefix="CA" recording={recording} onRecord={toggleRecord} lines={data.body} setData={setData} />
+          </>)}
+          {active === 'cell' && (<>
+            <p className="page-title">Cellule</p>
+            <p className="page-sub">Dictez les travaux sur la cellule ligne par ligne</p>
+            <LinesBlock block="cell" text={texts.cell} prefix="CE" recording={recording} onRecord={toggleRecord} lines={data.cell} setData={setData} />
+          </>)}
+          {active === 'validation' && (<>
+            <p className="page-title">Validation finale</p>
+            <p className="page-sub">V\u00e9rifiez les informations avant de g\u00e9n\u00e9rer le fichier Excel</p>
+            <RecapCard data={data} vehicleLabels={vehicleLabels} mechanicsLabels={mechanicsLabels} />
+          </>)}
+          <div className="actions">
+            <div className="nav-btns">
+              {stepIndex > 0 && <button className="btn-secondary" onClick={() => setActive(STEPS[stepIndex - 1].id)}>\u2190 Pr\u00e9c\u00e9dent</button>}
+              {stepIndex < STEPS.length - 1 && <button className="btn-primary" onClick={() => setActive(STEPS[stepIndex + 1].id)}>Suivant \u2192</button>}
             </div>
+            {active === 'validation' && <button className="btn-excel" onClick={generateExcel}>G\u00e9n\u00e9rer le fichier Excel</button>}
+            {status && <p className="status">{status}</p>}
           </div>
-          <button className="primary" onClick={generateExcel}>✅ Générer le fichier Excel</button>
-            </section>
-          )}
-
-          {lastTranscript && (
-            <section className="card transcript">
-              <h2>Dernière transcription</h2>
-              <p>{lastTranscript}</p>
-            </section>
-          )}
-
-          <div className="status">{status}</div>
         </main>
+      </div>
+    </div>
+  );
+}
+
+function DicteeBlock({ block, text, recording, onRecord }) {
+  return (
+    <div className="card dictee-card">
+      <div className="dictee-header">
+        <button className={`btn-mic${recording === block ? ' recording' : ''}`} onClick={() => onRecord(block)}>
+          {recording === block ? '\u23f9 Arr\u00eater' : '\ud83c\udf19\ufe0f Activer la dict\u00e9e'}
+        </button>
+        {recording !== block && <span className="badge">Analyse automatique GPT</span>}
+      </div>
+      {text && <p className="transcript">{text}</p>}
+    </div>
+  );
+}
+
+function LinesBlock({ block, text, prefix, recording, onRecord, lines, setData }) {
+  function add() { setData(d => ({ ...d, [block]: [...d[block], { id: `${Date.now()}-${Math.random()}`, desc: '', amount: '' }] })); }
+  function update(id, field, value) { setData(d => ({ ...d, [block]: d[block].map(l => l.id === id ? { ...l, [field]: value } : l) })); }
+  function remove(id) { setData(d => ({ ...d, [block]: d[block].filter(l => l.id !== id) })); }
+  return (
+    <>
+      <DicteeBlock block={block} text={text} recording={recording} onRecord={onRecord} />
+      <div className="card">
+        {lines.length === 0 && <p style={{ fontSize: '13px', color: 'var(--text-faint)', marginBottom: '10px' }}>Aucune ligne \u2014 dictez ou ajoutez manuellement.</p>}
+        {lines.map((line, i) => (
+          <div className="line-row" key={line.id || i}>
+            <span className="line-ref">{prefix}{String(i+1).padStart(2,'0')}</span>
+            <input type="text" className="line-desc" value={line.desc}
+              onChange={e => update(line.id, 'desc', e.target.value)} placeholder="Description" />
+            <input type="number" className="line-amount" value={line.amount}
+              onChange={e => update(line.id, 'amount', e.target.value)} placeholder="0 \u20AC" />
+            <button className="btn-del" onClick={() => remove(line.id)}>\u2315</button>
+          </div>))}
+        <button className="btn-add" onClick={add}>+ Ajouter une ligne</button>
       </div>
     </>
   );
 }
 
-function Block({ title, block, text, analyze, recording, toggleRecord, children }) {
-  return (
-    <>
-      <section className="card">
-        <h2>{title}</h2>
-        <textarea value={text} onChange={(e) => analyze(block, e.target.value)} />
-        <button className={recording === block ? 'recording' : 'primary'} onClick={() => toggleRecord(block)}>
-          {recording === block ? '■ Arrêter' : '🎙 Activer la dictée'}
-        </button>
-        <span className="badge">Analyse automatique</span>
-      </section>
-      <section className="card">{children}</section>
-    </>
-  );
-}
-
-function Grid({ labels, values, onChange }) {
-  return (
-    <div className="grid">
-      {Object.entries(labels).map(([k, label]) => (
-        <label key={k}>
-          <span>{label}</span>
-          <input value={values[k] || ''} onChange={(e) => onChange(k, e.target.value)} />
-        </label>
-      ))}
+function RecapCard({ data, vehicleLabels, mechanicsLabels }) {
+  const v = data.vehicle;
+  const m = data.mechanics;
+  const oui = Object.entries(mechanicsLabels).filter(([k]) => m[k] === 'OUI');
+  return (<>
+    <div className="card" style={{ borderTop: '3px solid #2563eb' }}>
+      <h2><span className="card-icon">\ud83d\uddc5</span> V\u00e9hicule</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '10px' }}>
+        {Object.entries(vehicleLabels).map(([k,label]) => v[k] ? (
+          <div key={k} style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+            <span style={{ fontSize:'11px', fontWeight:600, letterSpacing:'.05em', textTransform:'uppercase', color:'var(--text-faint)' }}>{label}</span>
+            <span style={{ fontSize:'13.5px', color:'var(--text)', fontWeight:500 }}>{v[k]}</span>
+          </div>) : null)}
+      </div>
     </div>
-  );
-}
-
-function Lines({ title, block, text, recording, toggleRecord, lines, setData, help }) {
-  function add() {
-    setData((d) => ({ ...d, [block]: [...d[block], { id: String(Date.now()), desc: '', amount: '' }] }));
-  }
-
-  function update(index, key, value) {
-    setData((d) => ({ ...d, [block]: d[block].map((line, i) => i === index ? { ...line, [key]: value } : line) }));
-  }
-
-  function remove(index) {
-    setData((d) => ({ ...d, [block]: d[block].filter((_, i) => i !== index) }));
-  }
-
-  return (
-    <>
-      <section className="card">
-        <h2>{title}</h2>
-        <p className="help">{help}</p>
-        <textarea readOnly value={text} placeholder="Historique des dictées ligne par ligne" />
-        <button className={recording === block ? 'recording' : 'primary'} onClick={() => toggleRecord(block)}>
-          {recording === block ? '■ Arrêter la dictée' : '🎙 Dicter les travaux'}
-        </button>
-        <button onClick={add}>+ Ajouter ligne manuelle</button>
-        <span className="badge">Une ligne après chaque montant</span>
-      </section>
-
-      <section className="card">
-        {lines.map((line, i) => (
-          <div className="line" key={line.id || i}>
-            <input placeholder="Description" value={line.desc || ''} onChange={(e) => update(i, 'desc', e.target.value)} />
-            <input placeholder="€" value={line.amount || ''} onChange={(e) => update(i, 'amount', e.target.value)} />
-            <button onClick={() => remove(i)}>×</button>
-          </div>
-        ))}
-      </section>
-    </>
-  );
-}
-
-function filenameFromHeader(header) {
-  return header?.match(/filename="([^"]+)"/)?.[1] || null;
+    <div className="card" style={{ borderTop: '3px solid #16a34a' }}>
+      <h2><span className="card-icon" style={{ background:'#f0fdf4', color:'#16a34a' }}>\ud83d\udd27</span> M\u00e9canique</h2>
+      <div style={{ displa{:'flex', flexWrap:'wrap', gap:'6px' }}>
+        {oui.length === 0 ? <span style={{ fontSize:'13px', color:'var(--text-faint)' }}>Aucun travail m\u00e9canique</span>
+          : oui.map(([k,label]) => <span key={k} className="badge-oui">{label}</span>)}
+        {m.autresMeca && m.autresMeca !== '0' && <span className="badge-oui">Autres : {m.autresMeca} \u20AC</span>}
+      </div>
+    </div>
+    {data.body.length > 0 && <div className="card" style={{ borderTop:'3px solid #d97706' }}>
+      <h2><span className="card-icon" style={{ background:'#fffbeb', color:'#d97706' }}>\ud83d\udd17</span> Carrosserie</h2>
+      {data.body.map((l,i) => <div key={l.id} style={{ display:'flex', justifyContent:'space-between', padding:'5px 0', borderBottom:'1px solid var(--border)', fontSize:'13.5px' }}>
+        <span style={{ color:'var(--text-faint)', minWidth:'40px', fontFamily:'monospace' }}>CA{String(i+1).padStart(2,'0')}</span>
+        <span style={{ flex:1 }}>{l.desc}</span>
+        {l.amount && <span style={{ fontWeight:600 }}>{l.amount} \u20AC</span>}
+      </div>)}
+    </div>}
+    {data.cell.length > 0 && <div className="card" style={{ borderTop:'3xx solid #7c3aed' }}>
+      <h2><span className="card-icon" style={{ background:'#f5f3ff', color:'#7c3aed' }}>\ud83c\udf00</span> Cellule</h2>
+      {data.cell.map((l,i) => <div key={l.id} style={{ display:'flex', justifyContent:'space-between', padding:'5px 0', borderBottom:'1px solid var(--border)', fontSize:'13.5px' }}>
+        <span style={{ color:'var(--text-faint)', minWidth:'40px', fontFamily:'monospace' }}>CE{String(i+1).padStart(2,'0')}</span>
+        <span style={{ flex:1 }}>{l.desc}</span>
+        {l.amount && <span style={{ fontWeight:600 }}>{l.amount} \u20AC</span>}
+      </div>)}
+    </div>}
+  </>);
 }
 
 createRoot(document.getElementById('root')).render(<App />);
