@@ -5,8 +5,8 @@ import './style.css';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const STEPS = [
-  { id: 'vehicle',    label: 'V\u00e9hicule',     icon: '\uD83D\uDDC5' },
-  { id: 'mechanics',  label: 'M\u00e9canique',    icon: '\uD83D\uDD27' },
+  { id: 'vehicle',    label: 'Véhicule',     icon: '\uD83D\uDDC5' },
+  { id: 'mechanics',  label: 'Mécanique',    icon: '\uD83D\uDD27' },
   { id: 'body',       label: 'Carrosserie',  icon: '\uD83D\uDD17' },
   { id: 'cell',       label: 'Cellule',      icon: '\uD83C\uDF00' },
   { id: 'validation', label: 'Validation',   icon: '\u2705' },
@@ -14,20 +14,20 @@ const STEPS = [
 
 const vehicleLabels = {
   marque:       'Marque',
-  modele:        'Mod\u00e8le',
+  modele:        'Modèle',
   motorisation:  'Motorisation',
-  mec:           'MEC / 1\u00e8re mise en circulation',
+  mec:           'MEC / 1ère mise en circulation',
   immat:         'Immatriculation',
-  prixAchat:     "Prix d\u2019achat \u20AC",
-  cessionOdoo:   'Cession Odoo \u20AC',
-  commercial:    'R\u00e9alis\u00e9 par',
+  prixAchat:     "Prix d'achat €",
+  cessionOdoo:   'Cession Odoo €',
+  commercial:    'Réalisé par',
 };
 
 const mechanicsLabels = {
-  prepEsthetique: 'Pr\u00e9pa esth\u00e9tique',
-  ct:             'Contr\u00f4le technique',
+  prepEsthetique: 'Prépa esthétique',
+  ct:             'Contrôle technique',
   vidangeSimple:  'Vidange simple',
-  vidangeComplete:'Vidange compl\u00e8te',
+  vidangeComplete:'Vidange complète',
   courroie:       'Courroie distribution',
   pneus:          'Pneus',
   batterie:       'Batterie moteur',
