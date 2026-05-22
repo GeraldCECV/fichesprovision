@@ -290,7 +290,7 @@ function RecapCard({ data, vehicleLabels, mechanicsLabels }) {
     </div>
     <div className="card" style={{ borderTop: '3px solid #16a34a' }}>
       <h2><span className="card-icon" style={{ background:'#f0fdf4', color:'#16a34a' }}>\ud83d\udd27</span> M\u00e9canique</h2>
-      <div style={{ displa{:'flex', flexWrap:'wrap', gap:'6px' }}>
+      <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
         {oui.length === 0 ? <span style={{ fontSize:'13px', color:'var(--text-faint)' }}>Aucun travail m\u00e9canique</span>
           : oui.map(([k,label]) => <span key={k} className="badge-oui">{label}</span>)}
         {m.autresMeca && m.autresMeca !== '0' && <span className="badge-oui">Autres : {m.autresMeca} \u20AC</span>}
