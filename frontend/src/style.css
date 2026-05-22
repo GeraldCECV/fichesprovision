@@ -52,10 +52,10 @@ header {
 }
 
 header img {
-  height: 32px;
-  width: auto;
-  filter: brightness(0) invert(1);
-  opacity: .9;
+  display: block;
+  width: 160px;
+  height: auto;
+  object-fit: contain;
 }
 
 header h1 {
