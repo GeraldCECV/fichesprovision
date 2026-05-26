@@ -52,7 +52,7 @@ const initialState = {
 const STATUS = {
   IDLE: '',
   RECORDING: 'Enregistrement en cours…',
-  TRANSCRIBING: 'Transcription et analyse GPT en cours…',
+  PROCESSING: 'Transcription + analyse GPT en cours…',
   DONE: '',
 };
 
@@ -99,8 +99,8 @@ function App() {
         stream.getTracks().forEach(t => t.stop());
 
         setRecording(null);
-        setPhase('transcribing');
-        setStatus(STATUS.TRANSCRIBING);
+        setPhase('processing');
+        setStatus(STATUS.PROCESSING);
 
         try {
           const blob = new Blob(chunksRef.current, {
@@ -115,19 +115,19 @@ function App() {
           const fd = new FormData();
           fd.append('audio', blob, `audio.${ext}`);
 
-          const tr = await fetch(`${API_URL}/api/transcribe-and-analyze`, {
+          const response = await fetch(`${API_URL}/api/transcribe-and-analyze`, {
             method: 'POST',
             body: fd,
           });
 
-          const trj = await tr.json();
+          const json = await response.json();
 
-          if (!tr.ok) {
-            throw new Error(trj.error || 'Erreur transcription/analyse');
+          if (!response.ok) {
+            throw new Error(json.error || 'Erreur transcription/analyse');
           }
 
-          const transcript = trj.text || '';
-          const d = trj.data || {};
+          const transcript = json.text || '';
+          const d = json.data || {};
 
           setTexts(t => ({
             ...t,
@@ -250,7 +250,11 @@ function App() {
             <div className="sidebar-summary">
               <p className="sidebar-summary-label">En cours</p>
               <p className="sidebar-summary-name">{vehicleName}</p>
-              {data.vehicle.immat && <p className="sidebar-summary-detail">{data.vehicle.immat}</p>}
+
+              {data.vehicle.immat && (
+                <p className="sidebar-summary-detail">{data.vehicle.immat}</p>
+              )}
+
               {data.vehicle.prixAchat && (
                 <p className="sidebar-summary-detail">
                   {parseInt(data.vehicle.prixAchat).toLocaleString('fr-FR')} €
@@ -279,6 +283,7 @@ function App() {
                   {Object.entries(vehicleLabels).map(([k, label]) => (
                     <div key={k} className="field">
                       <label>{label.toUpperCase()}</label>
+
                       <input
                         type="text"
                         value={data.vehicle[k] || ''}
@@ -286,7 +291,10 @@ function App() {
                         onChange={e =>
                           setData(d => ({
                             ...d,
-                            vehicle: { ...d.vehicle, [k]: e.target.value },
+                            vehicle: {
+                              ...d.vehicle,
+                              [k]: e.target.value,
+                            },
                           }))
                         }
                       />
@@ -315,6 +323,7 @@ function App() {
                   {Object.entries(mechanicsLabels).map(([k, label]) => (
                     <div key={k} className="meca-row">
                       <span className="meca-label">{label}</span>
+
                       <span
                         className={data.mechanics[k] === 'OUI' ? 'badge-oui' : 'badge-non'}
                         onClick={() =>
@@ -334,6 +343,7 @@ function App() {
 
                   <div className="meca-row" style={{ gridColumn: 'span 2' }}>
                     <span className="meca-label">Autres méca (€)</span>
+
                     <input
                       type="number"
                       className="meca-input"
@@ -431,7 +441,7 @@ function App() {
             )}
 
             {status && (
-              <p className={`status${phase === 'transcribing' ? ' status-pulse' : ''}`}>
+              <p className={`status${phase === 'processing' ? ' status-pulse' : ''}`}>
                 {status}
               </p>
             )}
@@ -444,7 +454,7 @@ function App() {
 
 function DicteeBlock({ block, text, recording, phase, onRecord }) {
   const isRecording = recording === block;
-  const isProcessing = phase === 'transcribing' && !isRecording;
+  const isProcessing = phase === 'processing' && !isRecording;
 
   return (
     <div className="card">
@@ -479,7 +489,11 @@ function LinesBlock({ block, text, prefix, recording, phase, onRecord, lines, se
       ...d,
       [block]: [
         ...d[block],
-        { id: `${Date.now()}-${Math.random()}`, desc: '', amount: '' },
+        {
+          id: `${Date.now()}-${Math.random()}`,
+          desc: '',
+          amount: '',
+        },
       ],
     }));
   }
@@ -488,7 +502,9 @@ function LinesBlock({ block, text, prefix, recording, phase, onRecord, lines, se
     setData(d => ({
       ...d,
       [block]: d[block].map(l =>
-        l.id === id ? { ...l, [field]: value } : l
+        l.id === id
+          ? { ...l, [field]: value }
+          : l
       ),
     }));
   }
@@ -519,7 +535,9 @@ function LinesBlock({ block, text, prefix, recording, phase, onRecord, lines, se
 
         {lines.map((line, i) => (
           <div className="line-row" key={line.id || i}>
-            <span className="line-ref">{prefix}{String(i + 1).padStart(2, '0')}</span>
+            <span className="line-ref">
+              {prefix}{String(i + 1).padStart(2, '0')}
+            </span>
 
             <input
               type="text"
@@ -554,6 +572,7 @@ function LinesBlock({ block, text, prefix, recording, phase, onRecord, lines, se
 function RecapCard({ data, vehicleLabels, mechanicsLabels }) {
   const v = data.vehicle;
   const m = data.mechanics;
+
   const oui = Object.entries(mechanicsLabels).filter(([k]) => m[k] === 'OUI');
 
   return (
@@ -618,7 +637,11 @@ function RecapCard({ data, vehicleLabels, mechanicsLabels }) {
 
               <span style={{ flex: 1 }}>{l.desc}</span>
 
-              {l.amount && <span style={{ fontWeight: 500 }}>{l.amount} €</span>}
+              {l.amount && (
+                <span style={{ fontWeight: 500 }}>
+                  {l.amount} €
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -645,7 +668,11 @@ function RecapCard({ data, vehicleLabels, mechanicsLabels }) {
 
               <span style={{ flex: 1 }}>{l.desc}</span>
 
-              {l.amount && <span style={{ fontWeight: 500 }}>{l.amount} €</span>}
+              {l.amount && (
+                <span style={{ fontWeight: 500 }}>
+                  {l.amount} €
+                </span>
+              )}
             </div>
           ))}
         </div>
