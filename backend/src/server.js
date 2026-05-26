@@ -32,6 +32,10 @@ const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
+// =====================================================
+// HEALTH
+// =====================================================
+
 app.get('/', (_, res) => {
   res.send('Provision VO Ypo Ouest API OK');
 });
@@ -45,7 +49,9 @@ app.get('/api/health', (_, res) => {
 // =====================================================
 
 app.post('/api/analyze', (req, res) => {
+
   try {
+
     const { block, text } = req.body || {};
 
     res.json({
@@ -81,7 +87,7 @@ app.post('/api/transcribe-and-analyze', upload.single('audio'), async (req, res)
     }
 
     // ============================================
-    // TRANSCRIPTION AUDIO
+    // PREPARATION AUDIO
     // ============================================
 
     const mime = req.file.mimetype || 'audio/webm';
@@ -99,22 +105,42 @@ app.post('/api/transcribe-and-analyze', upload.single('audio'), async (req, res)
       { type: mime }
     );
 
+    // ============================================
+    // TRANSCRIPTION QUALITE PREMIUM
+    // ============================================
+
     const transcription = await openai.audio.transcriptions.create({
+
       file: audioFile,
-      model: 'whisper-1',
+
+      model: 'gpt-4o-transcribe',
+
       language: 'fr',
+
       prompt: `
 Contexte : concession camping-car Ypocamp.
-Transcription dictée VO.
-Préserver :
-- marques
-- modèles
-- immatriculations
-- montants
-- MEC
-- travaux carrosserie
-- travaux cellule
-- travaux mécanique
+
+Transcription d'une dictée métier VO.
+
+Important :
+- MEC = mise en circulation
+- préserver les immatriculations françaises
+- préserver les montants en euros
+- préserver les noms de marques camping-car
+
+Marques fréquentes :
+Hymer, Fleurette, Rapido, Pilote, Chausson,
+Challenger, Adria, Bürstner, Carthago,
+McLouis, Font Vendôme, Bavaria, Dethleffs,
+Benimar, Burstner, Carado, Dreamer,
+Notin, Itineo, Rimor, Sunlight.
+
+Travaux fréquents :
+CT, vidange, courroie, pneus, batterie,
+carrosserie, cellule, baie, lanterneau,
+frigo, chauffage, humidité, infiltration,
+joint de coiffe, panneau solaire,
+store, moustiquaire, marchepied.
 `
     });
 
@@ -127,14 +153,15 @@ Préserver :
     // ============================================
 
     const prompt = `
-Tu es un assistant Ypocamp.
+Tu es un assistant expert Ypocamp.
 
-Analyse cette dictée et retourne UNIQUEMENT un JSON valide.
+Analyse cette dictée de reprise VO camping-car
+et retourne UNIQUEMENT un JSON valide.
 
 Dictée :
 "${text}"
 
-Format attendu :
+Format JSON attendu :
 
 {
   "vehicle": {
@@ -164,33 +191,39 @@ Format attendu :
 }
 
 Règles :
-- Tous les champs mécanique sont NON par défaut.
-- "vidange" = vidangeSimple OUI.
-- "vidange complète" = vidangeComplete OUI.
-- "CT" = ct OUI.
-- "courroie" = courroie OUI.
-- "batterie" = batterie OUI.
-- "prépa", "nettoyage" = prepEsthetique OUI.
-- pneus = "OUI, 1" ou "OUI, 2" si mentionné.
-- body = carrosserie.
-- cell = cellule.
-- montants en chiffres uniquement.
-- retourner uniquement du JSON.
+- Tous les champs mécanique = NON par défaut
+- "vidange" = vidangeSimple OUI
+- "vidange complète" = vidangeComplete OUI
+- "CT" = ct OUI
+- "courroie" = courroie OUI
+- "batterie" = batterie OUI
+- "prépa", "nettoyage" = prepEsthetique OUI
+- pneus = "OUI, 1" ou "OUI, 2"
+- body = carrosserie
+- cell = cellule
+- montants uniquement en chiffres
+- commercial = prénom uniquement
+- retourner uniquement du JSON
 `;
 
     const completion = await openai.chat.completions.create({
+
       model: 'gpt-4o-mini',
+
       messages: [
         {
           role: 'user',
           content: prompt
         }
       ],
+
       temperature: 0.1,
+
       max_tokens: 1200
     });
 
-    const raw = completion.choices[0]?.message?.content || '{}';
+    const raw =
+      completion.choices[0]?.message?.content || '{}';
 
     const clean = raw
       .replace(/```json/g, '')
@@ -207,12 +240,12 @@ Règles :
       data.cell = [];
     }
 
-    data.body = data.body.map((line) => ({
+    data.body = data.body.map(line => ({
       ...line,
       id: createId()
     }));
 
-    data.cell = data.cell.map((line) => ({
+    data.cell = data.cell.map(line => ({
       ...line,
       id: createId()
     }));
@@ -265,9 +298,7 @@ app.post('/api/generate-excel', async (req, res) => {
     const body = payload.body || [];
     const cell = payload.cell || [];
 
-    // ============================================
     // VEHICULE
-    // ============================================
 
     set(sheet, 'B8', v.marque);
     set(sheet, 'B9', v.modele);
@@ -279,9 +310,7 @@ app.post('/api/generate-excel', async (req, res) => {
     set(sheet, 'B12', v.commercial);
     set(sheet, 'E12', today());
 
-    // ============================================
     // MECANIQUE
-    // ============================================
 
     set(sheet, 'D14', m.prepEsthetique || 'NON');
     set(sheet, 'D18', m.ct || 'NON');
@@ -293,9 +322,7 @@ app.post('/api/generate-excel', async (req, res) => {
     set(sheet, 'D24', m.batterie || 'NON');
     set(sheet, 'D25', number(m.autresMeca || 0));
 
-    // ============================================
     // CARROSSERIE
-    // ============================================
 
     for (let r = 29; r <= 34; r++) {
       set(sheet, `A${r}`, '');
@@ -310,9 +337,7 @@ app.post('/api/generate-excel', async (req, res) => {
       set(sheet, `E${r}`, number(line.amount || 0));
     });
 
-    // ============================================
     // CELLULE
-    // ============================================
 
     for (let r = 38; r <= 51; r++) {
       set(sheet, `A${r}`, '');
@@ -327,9 +352,7 @@ app.post('/api/generate-excel', async (req, res) => {
       set(sheet, `E${r}`, number(line.amount || 0));
     });
 
-    // ============================================
     // DIVERS
-    // ============================================
 
     for (let r = 54; r <= 57; r++) {
       set(sheet, `A${r}`, '');
@@ -339,15 +362,11 @@ app.post('/api/generate-excel', async (req, res) => {
     set(sheet, 'A54', 'Pack Fraicheur');
     set(sheet, 'A55', "Test d'humidité");
 
-    // ============================================
     // MAUVAISES SURPRISES
-    // ============================================
 
     set(sheet, 'E58', surpriseAmount(v.mec));
 
-    // ============================================
     // NOM FICHIER
-    // ============================================
 
     const filename =
       `Fiche_Provision_${cleanFileName(v.marque)}_${cleanFileName(v.modele)}_${cleanFileName(v.immat)}.xlsx`;
@@ -416,7 +435,9 @@ function number(value) {
       .replace(',', '.')
   );
 
-  return Number.isFinite(n) ? n : 0;
+  return Number.isFinite(n)
+    ? n
+    : 0;
 }
 
 function today() {
