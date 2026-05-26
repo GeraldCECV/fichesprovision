@@ -7,7 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import OpenAI, { toFile } from 'openai';
 import ExcelJS from 'exceljs';
-import { parseBlock, surpriseAmount } from './parser.js';
+import { parseBlock } from './parser.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -32,10 +32,6 @@ const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
-// =====================================================
-// HEALTH
-// =====================================================
-
 app.get('/', (_, res) => {
   res.send('Provision VO Ypo Ouest API OK');
 });
@@ -44,54 +40,26 @@ app.get('/api/health', (_, res) => {
   res.json({ ok: true });
 });
 
-// =====================================================
-// FALLBACK REGEX
-// =====================================================
-
 app.post('/api/analyze', (req, res) => {
-
   try {
-
     const { block, text } = req.body || {};
-
-    res.json({
-      data: parseBlock(block, text || '')
-    });
-
+    res.json({ data: parseBlock(block, text || '') });
   } catch (error) {
-
-    res.status(500).json({
-      error: error.message
-    });
+    res.status(500).json({ error: error.message });
   }
 });
 
-// =====================================================
-// TRANSCRIPTION + ANALYSE GPT
-// =====================================================
-
 app.post('/api/transcribe-and-analyze', upload.single('audio'), async (req, res) => {
-
   try {
-
     if (!openai) {
-      return res.status(400).json({
-        error: 'OPENAI_API_KEY manquante.'
-      });
+      return res.status(400).json({ error: 'OPENAI_API_KEY manquante.' });
     }
 
     if (!req.file) {
-      return res.status(400).json({
-        error: 'Aucun audio reçu.'
-      });
+      return res.status(400).json({ error: 'Aucun audio reçu.' });
     }
 
-    // ============================================
-    // PREPARATION AUDIO
-    // ============================================
-
     const mime = req.file.mimetype || 'audio/webm';
-
     let ext = 'webm';
 
     if (mime.includes('mp4')) ext = 'mp4';
@@ -105,18 +73,10 @@ app.post('/api/transcribe-and-analyze', upload.single('audio'), async (req, res)
       { type: mime }
     );
 
-    // ============================================
-    // TRANSCRIPTION QUALITE PREMIUM
-    // ============================================
-
     const transcription = await openai.audio.transcriptions.create({
-
       file: audioFile,
-
       model: 'gpt-4o-transcribe',
-
       language: 'fr',
-
       prompt: `
 Contexte : concession camping-car Ypocamp.
 
@@ -148,10 +108,6 @@ store, moustiquaire, marchepied.
 
     fs.unlink(req.file.path, () => {});
 
-    // ============================================
-    // ANALYSE GPT
-    // ============================================
-
     const prompt = `
 Tu es un assistant expert Ypocamp.
 
@@ -174,7 +130,6 @@ Format JSON attendu :
     "cessionOdoo": 0,
     "commercial": ""
   },
-
   "mechanics": {
     "prepEsthetique": "NON",
     "ct": "NON",
@@ -185,45 +140,35 @@ Format JSON attendu :
     "batterie": "NON",
     "autresMeca": 0
   },
-
   "body": [],
   "cell": []
 }
 
 Règles :
-- Tous les champs mécanique = NON par défaut
-- "vidange" = vidangeSimple OUI
-- "vidange complète" = vidangeComplete OUI
-- "CT" = ct OUI
-- "courroie" = courroie OUI
-- "batterie" = batterie OUI
-- "prépa", "nettoyage" = prepEsthetique OUI
-- pneus = "OUI, 1" ou "OUI, 2"
-- body = carrosserie
-- cell = cellule
-- montants uniquement en chiffres
-- commercial = prénom uniquement
-- retourner uniquement du JSON
+- Tous les champs mécanique = NON par défaut.
+- "vidange" = vidangeSimple OUI.
+- "vidange complète" = vidangeComplete OUI.
+- "CT" = ct OUI.
+- "courroie" = courroie OUI.
+- "batterie" = batterie OUI.
+- "prépa", "nettoyage" = prepEsthetique OUI.
+- pneus = "OUI, 1" ou "OUI, 2".
+- body = carrosserie.
+- cell = cellule.
+- montants uniquement en chiffres.
+- commercial = prénom uniquement.
+- MEC au format JJ/MM/AAAA.
+- retourner uniquement du JSON.
 `;
 
     const completion = await openai.chat.completions.create({
-
       model: 'gpt-4o-mini',
-
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-
+      messages: [{ role: 'user', content: prompt }],
       temperature: 0.1,
-
       max_tokens: 1200
     });
 
-    const raw =
-      completion.choices[0]?.message?.content || '{}';
+    const raw = completion.choices[0]?.message?.content || '{}';
 
     const clean = raw
       .replace(/```json/g, '')
@@ -232,13 +177,10 @@ Règles :
 
     const data = JSON.parse(clean);
 
-    if (!Array.isArray(data.body)) {
-      data.body = [];
-    }
-
-    if (!Array.isArray(data.cell)) {
-      data.cell = [];
-    }
+    if (!data.vehicle) data.vehicle = {};
+    if (!data.mechanics) data.mechanics = {};
+    if (!Array.isArray(data.body)) data.body = [];
+    if (!Array.isArray(data.cell)) data.cell = [];
 
     data.body = data.body.map(line => ({
       ...line,
@@ -256,7 +198,6 @@ Règles :
     });
 
   } catch (error) {
-
     if (req.file?.path) {
       fs.unlink(req.file.path, () => {});
     }
@@ -267,16 +208,9 @@ Règles :
   }
 });
 
-// =====================================================
-// GENERATION EXCEL
-// =====================================================
-
 app.post('/api/generate-excel', async (req, res) => {
-
   try {
-
     const payload = req.body || {};
-
     const missing = validatePayload(payload);
 
     if (missing.length) {
@@ -295,10 +229,8 @@ app.post('/api/generate-excel', async (req, res) => {
 
     const v = payload.vehicle || {};
     const m = payload.mechanics || {};
-    const body = payload.body || [];
-    const cell = payload.cell || [];
-
-    // VEHICULE
+    const body = Array.isArray(payload.body) ? payload.body : [];
+    const cell = Array.isArray(payload.cell) ? payload.cell : [];
 
     set(sheet, 'B8', v.marque);
     set(sheet, 'B9', v.modele);
@@ -310,8 +242,6 @@ app.post('/api/generate-excel', async (req, res) => {
     set(sheet, 'B12', v.commercial);
     set(sheet, 'E12', today());
 
-    // MECANIQUE
-
     set(sheet, 'D14', m.prepEsthetique || 'NON');
     set(sheet, 'D18', m.ct || 'NON');
     set(sheet, 'D19', m.vidangeSimple || 'NON');
@@ -322,22 +252,16 @@ app.post('/api/generate-excel', async (req, res) => {
     set(sheet, 'D24', m.batterie || 'NON');
     set(sheet, 'D25', number(m.autresMeca || 0));
 
-    // CARROSSERIE
-
     for (let r = 29; r <= 34; r++) {
       set(sheet, `A${r}`, '');
       set(sheet, `E${r}`, '');
     }
 
     body.slice(0, 6).forEach((line, i) => {
-
       const r = 29 + i;
-
       set(sheet, `A${r}`, line.desc || '');
       set(sheet, `E${r}`, number(line.amount || 0));
     });
-
-    // CELLULE
 
     for (let r = 38; r <= 51; r++) {
       set(sheet, `A${r}`, '');
@@ -345,14 +269,10 @@ app.post('/api/generate-excel', async (req, res) => {
     }
 
     cell.slice(0, 14).forEach((line, i) => {
-
       const r = 38 + i;
-
       set(sheet, `A${r}`, line.desc || '');
       set(sheet, `E${r}`, number(line.amount || 0));
     });
-
-    // DIVERS
 
     for (let r = 54; r <= 57; r++) {
       set(sheet, `A${r}`, '');
@@ -362,11 +282,7 @@ app.post('/api/generate-excel', async (req, res) => {
     set(sheet, 'A54', 'Pack Fraicheur');
     set(sheet, 'A55', "Test d'humidité");
 
-    // MAUVAISES SURPRISES
-
-    set(sheet, 'E58', surpriseAmount(v.mec));
-
-    // NOM FICHIER
+    set(sheet, 'E58', getMauvaiseSurprise(v.mec));
 
     const filename =
       `Fiche_Provision_${cleanFileName(v.marque)}_${cleanFileName(v.modele)}_${cleanFileName(v.immat)}.xlsx`;
@@ -386,19 +302,13 @@ app.post('/api/generate-excel', async (req, res) => {
     res.send(Buffer.from(buffer));
 
   } catch (error) {
-
     res.status(500).json({
       error: error.message || 'Erreur génération Excel.'
     });
   }
 });
 
-// =====================================================
-// HELPERS
-// =====================================================
-
 function validatePayload(payload) {
-
   const v = payload.vehicle || {};
 
   const required = [
@@ -428,27 +338,22 @@ function set(sheet, cell, value) {
 }
 
 function number(value) {
-
   const n = Number(
     String(value ?? '')
       .replace(/\s/g, '')
       .replace(',', '.')
   );
 
-  return Number.isFinite(n)
-    ? n
-    : 0;
+  return Number.isFinite(n) ? n : 0;
 }
 
 function today() {
-
   const d = new Date();
 
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
 function cleanFileName(str = '') {
-
   return String(str)
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -462,9 +367,31 @@ function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-// =====================================================
-// START SERVER
-// =====================================================
+function getMauvaiseSurprise(mec) {
+  if (!mec) return 750;
+
+  const value = String(mec).trim();
+
+  const match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+
+  if (!match) return 750;
+
+  const day = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const year = Number(match[3]);
+
+  const mecDate = new Date(year, month, day);
+  const todayDate = new Date();
+
+  if (Number.isNaN(mecDate.getTime())) return 750;
+
+  const ageMs = todayDate - mecDate;
+  const ageYears = ageMs / (1000 * 60 * 60 * 24 * 365.25);
+
+  if (ageYears <= 4) return 250;
+  if (ageYears <= 8) return 500;
+  return 750;
+}
 
 app.listen(port, () => {
   console.log(`API ready on ${port}`);
