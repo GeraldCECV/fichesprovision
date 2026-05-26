@@ -49,6 +49,57 @@ const initialState = {
   cell: [],
 };
 
+function extractLines(text) {
+  const raw = String(text || '').replace(/\s+/g, ' ').trim();
+
+  if (!raw) return [];
+
+  const chunks = raw
+    .split(/[,;\n.]+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  const lines = [];
+  let pending = [];
+
+  for (const chunk of chunks) {
+    const match = chunk.match(/^(.*?)(\d[\d\s.]*)\s*(euros?|eur|€)?$/i);
+
+    if (match && match[2]) {
+      const descPart = match[1].trim().replace(/[,:;-]\s*$/, '');
+      const amount = match[2].replace(/\D/g, '');
+
+      if (descPart) {
+        pending.push(descPart);
+      }
+
+      const desc = pending.join(' ').trim();
+
+      if (desc) {
+        lines.push({
+          id: `${Date.now()}-${Math.random()}`,
+          desc,
+          amount,
+        });
+      }
+
+      pending = [];
+    } else {
+      pending.push(chunk);
+    }
+  }
+
+  if (pending.length) {
+    lines.push({
+      id: `${Date.now()}-${Math.random()}`,
+      desc: pending.join(' ').trim(),
+      amount: '',
+    });
+  }
+
+  return lines;
+}
+
 const STATUS = {
   IDLE: '',
   RECORDING: 'Enregistrement en cours…',
@@ -129,6 +180,8 @@ function App() {
           const transcript = json.text || '';
           const d = json.data || {};
 
+          const parsedLines = extractLines(transcript);
+
           setTexts(t => ({
             ...t,
             [block]: transcript,
@@ -136,16 +189,30 @@ function App() {
 
           setData(prev => ({
             ...prev,
+
             vehicle: {
               ...prev.vehicle,
-              ...(d.vehicle || {}),
+              ...(block === 'vehicle' ? d.vehicle || {} : {}),
             },
+
             mechanics: {
               ...prev.mechanics,
-              ...(d.mechanics || {}),
+              ...(block === 'mechanics' ? d.mechanics || {} : {}),
             },
-            body: d.body && d.body.length ? d.body : prev.body,
-            cell: d.cell && d.cell.length ? d.cell : prev.cell,
+
+            body:
+              block === 'body'
+                ? parsedLines
+                : d.body && d.body.length
+                  ? d.body
+                  : prev.body,
+
+            cell:
+              block === 'cell'
+                ? parsedLines
+                : d.cell && d.cell.length
+                  ? d.cell
+                  : prev.cell,
           }));
 
           setStatus('');
@@ -542,7 +609,7 @@ function LinesBlock({ block, text, prefix, recording, phase, onRecord, lines, se
             <input
               type="text"
               className="line-desc"
-              value={line.desc}
+              value={line.desc || ''}
               onChange={e => update(line.id, 'desc', e.target.value)}
               placeholder="Description"
             />
@@ -550,7 +617,7 @@ function LinesBlock({ block, text, prefix, recording, phase, onRecord, lines, se
             <input
               type="number"
               className="line-amount"
-              value={line.amount}
+              value={line.amount || ''}
               onChange={e => update(line.id, 'amount', e.target.value)}
               placeholder="0 €"
             />
