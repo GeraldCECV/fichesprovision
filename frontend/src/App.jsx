@@ -66,14 +66,15 @@ function extractLines(text) {
 }
 
 function App() {
-  const [active, setActive] = useState('vehicle');
-  const [data, setData]     = useState(initialState);
-  const [texts, setTexts]   = useState({ vehicle: '', mechanics: '', body: '', cell: '' });
+  const [active, setActive]     = useState('vehicle');
+  const [data, setData]         = useState(initialState);
+  const [texts, setTexts]       = useState({ vehicle: '', mechanics: '', body: '', cell: '' });
   const [recording, setRecording] = useState(null);
-  const [status, setStatus] = useState('');
+  const [status, setStatus]     = useState('');
   const recorderRef = useRef(null);
   const chunksRef   = useRef([]);
   const stepIndex   = STEPS.findIndex(s => s.id === active);
+  const progress    = ((stepIndex) / (STEPS.length - 1)) * 100;
 
   async function analyze(block, text) {
     if (!text.trim()) return;
@@ -155,24 +156,53 @@ function App() {
     } catch (e) { setStatus('Erreur : ' + e.message); }
   }
 
+  const commercial = data.vehicle.commercial || '';
+  const initiale   = commercial ? commercial.trim()[0].toUpperCase() : '';
+  const vehicleName = [data.vehicle.marque, data.vehicle.modele].filter(Boolean).join(' ');
+
   return (
     <div className="app">
       <header className="topbar">
-        <img src="/logo_ypocamp.jpeg" alt="Ypocamp" className="logo" />
-        <div className="topbar-sep" />
-        <h1>Génération des fiches de provision VO</h1>
+        <div className="topbar-left">
+          <img src="/logo_ypocamp.jpeg" alt="Ypocamp" className="logo" />
+          <span className="topbar-sep">/</span>
+          <span className="topbar-title">Provision VO</span>
+          <span className="topbar-sep">/</span>
+          <span className="topbar-sub">Nouvelle fiche</span>
+        </div>
+        {commercial && (
+          <div className="topbar-user">
+            <div className="user-avatar">{initiale}</div>
+            <span className="user-name">{commercial}</span>
+          </div>
+        )}
       </header>
+
+      <div className="progress-bar">
+        <div className="progress-fill" style={{ width: `${progress}%` }} />
+      </div>
+
       <div className="layout">
         <aside>
           <p className="nav-label">Saisie</p>
           {STEPS.map((s, i) => (
             <button key={s.id}
-              className={active === s.id ? 'active' : stepIndex > i ? 'done' : ''}
-              onClick={() => setActive(s.id)}>
-              <span className="step-num">{stepIndex > i ? '✓' : i + 1}</span>
+              className={active === s.id ? 'active' : stepIndex > i ? 'done' : ''}              onClick={() => setActive(s.id)}>
+              <span className="step-circle">{stepIndex > i ? '✓' : i + 1}</span>
               {s.label}
             </button>
-          ))}        </aside>
+          ))}
+
+          {vehicleName && (
+            <div className="sidebar-summary">
+              <p className="sidebar-summary-label">En cours</p>
+              <p className="sidebar-summary-name">{vehicleName}</p>
+              {data.vehicle.immat && <p className="sidebar-summary-detail">{data.vehicle.immat}</p>}
+              {data.vehicle.prixAchat && <p className="sidebar-summary-detail">{parseInt(data.vehicle.prixAchat).toLocaleString('fr-FR')} €</p>}
+            </div>
+          )}
+        </aside>
+
         <main>
           {active === 'vehicle' && (<>
             <p className="page-title">Caractéristiques véhicule</p>
@@ -184,6 +214,7 @@ function App() {
                   <div key={k} className="field">
                     <label>{label.toUpperCase()}</label>
                     <input type="text" value={data.vehicle[k] || ''}
+                      className={data.vehicle[k] ? 'filled' : ''}
                       onChange={e => setData(d => ({ ...d, vehicle: { ...d.vehicle, [k]: e.target.value } }))} />
                   </div>
                 ))}
@@ -202,7 +233,6 @@ function App() {
                     <span className="meca-label">{label}</span>
                     <span
                       className={data.mechanics[k] === 'OUI' ? 'badge-oui' : 'badge-non'}
-                      style={{ cursor: 'pointer' }}
                       onClick={() => setData(d => ({ ...d, mechanics: { ...d.mechanics, [k]: d.mechanics[k] === 'OUI' ? 'NON' : 'OUI' } }))}>
                       {data.mechanics[k] === 'OUI' ? 'OUI' : 'NON'}
                     </span>
@@ -242,7 +272,9 @@ function App() {
                 <button className="btn-secondary" onClick={() => setActive(STEPS[stepIndex - 1].id)}>← Précédent</button>
               )}
               {stepIndex < STEPS.length - 1 && (
-                <button className="btn-primary" onClick={() => setActive(STEPS[stepIndex + 1].id)}>Suivant →</button>
+                <button className="btn-primary" onClick={() => setActive(STEPS[stepIndex + 1].id)}>
+                  {STEPS[stepIndex + 1].label} →
+                </button>
               )}
             </div>
             {active === 'validation' && (
@@ -258,14 +290,15 @@ function App() {
 
 function DicteeBlock({ block, text, recording, onRecord }) {
   return (
-    <div className="card dictee-card">
-      <div className="dictee-header">
-        <button className={`btn-mic${recording === block ? ' recording' : ''}`} onClick={() => onRecord(block)}>
-          {recording === block ? '⏹ Arrêter' : '🎙 Activer la dictée'}
-        </button>
-        {recording !== block && <span className="badge">Analyse automatique GPT</span>}
+    <div className="card">
+      <div className="dictee-inner">
+        <span className="dictee-title">Dictée vocale</span>
+        {recording !== block && <span className="dictee-badge">Analyse GPT auto</span>}
       </div>
       {text && <p className="transcript">{text}</p>}
+      <button className={`btn-mic${recording === block ? ' recording' : ''}`} onClick={() => onRecord(block)}>
+        {recording === block ? '⏹ Arrêter' : '🎙 Activer la dictée'}
+      </button>
     </div>
   );
 }
@@ -277,7 +310,7 @@ function LinesBlock({ block, text, prefix, recording, onRecord, lines, setData }
   return (<>
     <DicteeBlock block={block} text={text} recording={recording} onRecord={onRecord} />
     <div className="card">
-      {lines.length === 0 && <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '10px' }}>Aucune ligne -- dictez ou ajoutez manuellement.</p>}
+      {lines.length === 0 && <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '8px' }}>Aucune ligne -- dictez ou ajoutez manuellement.</p>}
       {lines.map((line, i) => (
         <div className="line-row" key={line.id || i}>
           <span className="line-ref">{prefix}{String(i + 1).padStart(2, '0')}</span>
@@ -298,7 +331,7 @@ function RecapCard({ data, vehicleLabels, mechanicsLabels }) {
   const m = data.mechanics;
   const oui = Object.entries(mechanicsLabels).filter(([k]) => m[k] === 'OUI');
   return (<>
-    <div className="card" style={{ borderTop: '3px solid #2563eb' }}>
+    <div className="card" style={{ borderTop: '2px solid #2563eb' }}>
       <h2>Véhicule</h2>
       <div className="recap-grid">
         {Object.entries(vehicleLabels).map(([k, label]) => v[k] ? (
@@ -309,36 +342,36 @@ function RecapCard({ data, vehicleLabels, mechanicsLabels }) {
         ) : null)}
       </div>
     </div>
-    <div className="card" style={{ borderTop: '3px solid #16a34a' }}>
+    <div className="card" style={{ borderTop: '2px solid #16a34a' }}>
       <h2>Mécanique</h2>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
         {oui.length === 0
-          ? <span style={{ fontSize: '13px', color: '#94a3b8' }}>Aucun travail mécanique</span>
+          ? <span style={{ fontSize: '13px', color: '#9ca3af' }}>Aucun travail mécanique</span>
           : oui.map(([k, label]) => <span key={k} className="badge-oui">{label}</span>)
         }
         {m.autresMeca && m.autresMeca !== '0' && <span className="badge-oui">Autres : {m.autresMeca} €</span>}
       </div>
     </div>
     {data.body.length > 0 && (
-      <div className="card" style={{ borderTop: '3px solid #d97706' }}>
+      <div className="card" style={{ borderTop: '2px solid #d97706' }}>
         <h2>Carrosserie</h2>
         {data.body.map((l, i) => (
-          <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #e2e8f0', fontSize: '13.5px' }}>
-            <span style={{ color: '#94a3b8', minWidth: '40px', fontFamily: 'monospace' }}>CA{String(i+1).padStart(2,'0')}</span>
+          <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #f3f4f6', fontSize: '13px' }}>
+            <span style={{ color: '#9ca3af', minWidth: '38px', fontFamily: 'monospace' }}>CA{String(i+1).padStart(2,'0')}</span>
             <span style={{ flex: 1 }}>{l.desc}</span>
-            {l.amount && <span style={{ fontWeight: 600 }}>{l.amount} €</span>}
+            {l.amount && <span style={{ fontWeight: 500 }}>{l.amount} €</span>}
           </div>
         ))}
       </div>
     )}
     {data.cell.length > 0 && (
-      <div className="card" style={{ borderTop: '3px solid #7c3aed' }}>
+      <div className="card" style={{ borderTop: '2px solid #7c3aed' }}>
         <h2>Cellule</h2>
         {data.cell.map((l, i) => (
-          <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #e2e8f0', fontSize: '13.5px' }}>
-            <span style={{ color: '#94a3b8', minWidth: '40px', fontFamily: 'monospace' }}>CE{String(i+1).padStart(2,'0')}</span>
+          <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #f3f4f6', fontSize: '13px' }}>
+            <span style={{ color: '#9ca3af', minWidth: '38px', fontFamily: 'monospace' }}>CE{String(i+1).padStart(2,'0')}</span>
             <span style={{ flex: 1 }}>{l.desc}</span>
-            {l.amount && <span style={{ fontWeight: 600 }}>{l.amount} €</span>}
+            {l.amount && <span style={{ fontWeight: 500 }}>{l.amount} €</span>}
           </div>
         ))}
       </div>
