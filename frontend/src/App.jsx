@@ -5,181 +5,207 @@ import './style.css';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const STEPS = [
-  { id: 'vehicle',    label: 'Véhicule' },
-  { id: 'mechanics',  label: 'Mécanique' },
-  { id: 'body',       label: 'Carrosserie' },
-  { id: 'cell',       label: 'Cellule' },
+  { id: 'vehicle', label: 'Véhicule' },
+  { id: 'mechanics', label: 'Mécanique' },
+  { id: 'body', label: 'Carrosserie' },
+  { id: 'cell', label: 'Cellule' },
   { id: 'validation', label: 'Validation' },
 ];
 
 const vehicleLabels = {
-  marque:       'Marque',
-  modele:       'Modèle',
+  marque: 'Marque',
+  modele: 'Modèle',
   motorisation: 'Motorisation',
-  mec:          'MEC / 1ère mise en circulation',
-  immat:        'Immatriculation',
-  prixAchat:    "Prix d'achat €",
-  cessionOdoo:  'Cession Odoo €',
-  commercial:   'Réalisé par',
+  mec: 'MEC / 1ère mise en circulation',
+  immat: 'Immatriculation',
+  prixAchat: "Prix d'achat €",
+  cessionOdoo: 'Cession Odoo €',
+  commercial: 'Réalisé par',
 };
 
 const mechanicsLabels = {
   prepEsthetique: 'Prépa esthétique',
-  ct:             'Contrôle technique',
-  vidangeSimple:  'Vidange simple',
-  vidangeComplete:'Vidange complète',
-  courroie:       'Courroie distribution',
-  pneus:          'Pneus',
-  batterie:       'Batterie moteur',
+  ct: 'Contrôle technique',
+  vidangeSimple: 'Vidange simple',
+  vidangeComplete: 'Vidange complète',
+  courroie: 'Courroie distribution',
+  pneus: 'Pneus',
+  batterie: 'Batterie moteur',
 };
 
 const initialState = {
   vehicle: Object.fromEntries(Object.keys(vehicleLabels).map(k => [k, ''])),
   mechanics: {
-    prepEsthetique: 'NON', ct: 'NON', vidangeSimple: 'NON',
-    vidangeComplete: 'NON', courroie: 'NON', pneus: 'NON',
-    batterie: 'NON', autresMeca: '0',
+    prepEsthetique: 'NON',
+    ct: 'NON',
+    vidangeSimple: 'NON',
+    vidangeComplete: 'NON',
+    courroie: 'NON',
+    pneus: 'NON',
+    batterie: 'NON',
+    autresMeca: '0',
   },
   body: [],
   cell: [],
 };
 
-function extractLines(text) {
-  const raw = String(text || '').replace(/\s+/g, ' ').trim();
-  if (!raw) return [];
-  const chunks = raw.split(/[,;\n.]+/).map(s => s.trim()).filter(Boolean);
-  const lines = [];
-  let pending = [];
-  for (const chunk of chunks) {
-    const m = chunk.match(/^(.*?)(\d[\d\s.]*)[\s]*(euros?|EUR|€)\s*$/i);
-    if (m) {
-      if (m[1]) pending.push(m[1].trim().replace(/[,:;-]\s*$/, ''));
-      const desc = pending.join(' ').trim();
-      const amount = m[2].replace(/\D/g, '');
-      if (desc) lines.push({ id: `${Date.now()}-${Math.random()}`, desc, amount });
-      else if (lines.length) lines[lines.length - 1].amount = amount;
-      pending = [];
-    } else { pending.push(chunk); }
-  }
-  if (pending.length) lines.push({ id: `${Date.now()}-${Math.random()}`, desc: pending.join(' ').trim(), amount: '' });
-  return lines;
-}
-
-// Etapes du statut pour feedback progressif
 const STATUS = {
   IDLE: '',
   RECORDING: 'Enregistrement en cours…',
-  TRANSCRIBING: 'Transcription…',
-  ANALYZING: 'Analyse GPT en cours…',
+  TRANSCRIBING: 'Transcription et analyse GPT en cours…',
   DONE: '',
 };
 
 function App() {
-  const [active, setActive]     = useState('vehicle');
-  const [data, setData]         = useState(initialState);
-  const [texts, setTexts]       = useState({ vehicle: '', mechanics: '', body: '', cell: '' });
+  const [active, setActive] = useState('vehicle');
+  const [data, setData] = useState(initialState);
+  const [texts, setTexts] = useState({ vehicle: '', mechanics: '', body: '', cell: '' });
   const [recording, setRecording] = useState(null);
-  const [status, setStatus]     = useState('');
-  const [phase, setPhase]       = useState('idle'); // 'idle' | 'recording' | 'transcribing' | 'analyzing'
-  const recorderRef = useRef(null);
-  const chunksRef   = useRef([]);
-  const stepIndex   = STEPS.findIndex(s => s.id === active);
-  const progress    = (stepIndex / (STEPS.length - 1)) * 100;
+  const [status, setStatus] = useState('');
+  const [phase, setPhase] = useState('idle');
 
-  async function analyze(block, text) {
-    if (!text.trim()) return;
-    setPhase('analyzing');
-    setStatus(STATUS.ANALYZING);
-    try {
-      const res  = await fetch(`${API_URL}/api/analyze-full`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      const json = await res.json();
-      if (json.error) { setStatus('Erreur : ' + json.error); setPhase('idle'); return; }
-      const d = json.data || {};
-      const nonEmpty = obj => obj ? Object.fromEntries(
-        Object.entries(obj).filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '' && v !== '0')
-      ) : {};
-      setData(prev => ({
-        ...prev,
-        vehicle:   { ...prev.vehicle,   ...nonEmpty(d.vehicle)   },
-        mechanics: { ...prev.mechanics, ...nonEmpty(d.mechanics) },
-        body:  d.body && d.body.length  ? d.body  : prev.body,
-        cell:  d.cell && d.cell.length  ? d.cell  : prev.cell,
-      }));
-      setStatus('');
-      setPhase('idle');
-    } catch (e) { setStatus('Erreur : ' + e.message); setPhase('idle'); }
-  }
+  const recorderRef = useRef(null);
+  const chunksRef = useRef([]);
+
+  const stepIndex = STEPS.findIndex(s => s.id === active);
+  const progress = (stepIndex / (STEPS.length - 1)) * 100;
 
   async function toggleRecord(block) {
-    if (recording === block) { recorderRef.current?.stop(); return; }
+    if (recording === block) {
+      recorderRef.current?.stop();
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime   = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus']
-                       .find(t => MediaRecorder.isTypeSupported(t)) || '';
-      const rec    = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+
+      const mime = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/ogg;codecs=opus',
+      ].find(t => MediaRecorder.isTypeSupported(t)) || '';
+
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+
       recorderRef.current = rec;
-      chunksRef.current   = [];
-      rec.ondataavailable = e => { if (e.data.size) chunksRef.current.push(e.data); };
+      chunksRef.current = [];
+
+      rec.ondataavailable = e => {
+        if (e.data.size) chunksRef.current.push(e.data);
+      };
+
       rec.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
+
         setRecording(null);
         setPhase('transcribing');
         setStatus(STATUS.TRANSCRIBING);
+
         try {
-          const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
-          const ext  = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
-          const fd   = new FormData();
+          const blob = new Blob(chunksRef.current, {
+            type: rec.mimeType || 'audio/webm',
+          });
+
+          const ext =
+            blob.type.includes('mp4') ? 'mp4'
+            : blob.type.includes('ogg') ? 'ogg'
+            : 'webm';
+
+          const fd = new FormData();
           fd.append('audio', blob, `audio.${ext}`);
-          const tr  = await fetch(`${API_URL}/api/transcribe`, { method: 'POST', body: fd });
+
+          const tr = await fetch(`${API_URL}/api/transcribe-and-analyze`, {
+            method: 'POST',
+            body: fd,
+          });
+
           const trj = await tr.json();
-          if (!tr.ok) throw new Error(trj.error || 'Erreur transcription');
-          const transcript = trj.text || '';
-          // Afficher la transcription immédiatement
-          setTexts(t => ({ ...t, [block]: transcript }));
-          if (block === 'body' || block === 'cell') {
-            const nl = extractLines(transcript);
-            if (nl.length) setData(d => ({ ...d, [block]: [...d[block], ...nl] }));
-            setStatus('');
-            setPhase('idle');
-          } else {
-            // Lancer l'analyse sans attendre l'affichage
-            await analyze(block, transcript);
+
+          if (!tr.ok) {
+            throw new Error(trj.error || 'Erreur transcription/analyse');
           }
-        } catch (e) { setStatus('Erreur : ' + e.message); setPhase('idle'); }
+
+          const transcript = trj.text || '';
+          const d = trj.data || {};
+
+          setTexts(t => ({
+            ...t,
+            [block]: transcript,
+          }));
+
+          setData(prev => ({
+            ...prev,
+            vehicle: {
+              ...prev.vehicle,
+              ...(d.vehicle || {}),
+            },
+            mechanics: {
+              ...prev.mechanics,
+              ...(d.mechanics || {}),
+            },
+            body: d.body && d.body.length ? d.body : prev.body,
+            cell: d.cell && d.cell.length ? d.cell : prev.cell,
+          }));
+
+          setStatus('');
+          setPhase('idle');
+        } catch (e) {
+          setStatus('Erreur : ' + e.message);
+          setPhase('idle');
+        }
       };
+
       rec.start();
+
       setRecording(block);
       setPhase('recording');
       setStatus(STATUS.RECORDING);
-    } catch (e) { setStatus('Erreur micro : ' + e.message); setPhase('idle'); }
+    } catch (e) {
+      setStatus('Erreur micro : ' + e.message);
+      setPhase('idle');
+    }
   }
 
   async function generateExcel() {
     setStatus('Génération du fichier…');
+
     try {
       const res = await fetch(`${API_URL}/api/generate-excel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
+
+      if (!res.ok) {
+        const e = await res.json();
+        throw new Error(e.error);
+      }
+
       const blob = await res.blob();
+
       const name = `${data.vehicle.marque}-${data.vehicle.modele}-${data.vehicle.immat}.xlsx`
-        .replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
+        .replace(/[\\/:*?"<>|]+/g, '-')
+        .replace(/\s+/g, ' ')
+        .trim();
+
       const url = URL.createObjectURL(blob);
-      const a   = document.createElement('a');
-      a.href = url; a.download = name; a.click();
+      const a = document.createElement('a');
+
+      a.href = url;
+      a.download = name;
+      a.click();
+
       URL.revokeObjectURL(url);
+
       setStatus('Fichier téléchargé.');
-    } catch (e) { setStatus('Erreur : ' + e.message); }
+    } catch (e) {
+      setStatus('Erreur : ' + e.message);
+    }
   }
 
-  const commercial  = data.vehicle.commercial || '';
-  const initiale    = commercial ? commercial.trim()[0].toUpperCase() : '';
+  const commercial = data.vehicle.commercial || '';
+  const initiale = commercial ? commercial.trim()[0].toUpperCase() : '';
   const vehicleName = [data.vehicle.marque, data.vehicle.modele].filter(Boolean).join(' ');
 
   return (
@@ -187,10 +213,12 @@ function App() {
       <header className="topbar">
         <div className="topbar-left">
           <img src="/logo_ypocamp.jpeg" alt="Ypocamp" className="logo" />
-          <span className="topbar-sep">/</span>          <span className="topbar-title">Provision VO</span>
+          <span className="topbar-sep">/</span>
+          <span className="topbar-title">Provision VO</span>
           <span className="topbar-sep">/</span>
           <span className="topbar-sub">Nouvelle fiche</span>
         </div>
+
         {commercial && (
           <div className="topbar-user">
             <div className="user-avatar">{initiale}</div>
@@ -206,102 +234,207 @@ function App() {
       <div className="layout">
         <aside>
           <p className="nav-label">Saisie</p>
+
           {STEPS.map((s, i) => (
-            <button key={s.id}
+            <button
+              key={s.id}
               className={active === s.id ? 'active' : stepIndex > i ? 'done' : ''}
-              onClick={() => setActive(s.id)}>
+              onClick={() => setActive(s.id)}
+            >
               <span className="step-circle">{stepIndex > i ? '✓' : i + 1}</span>
               {s.label}
             </button>
           ))}
+
           {vehicleName && (
             <div className="sidebar-summary">
               <p className="sidebar-summary-label">En cours</p>
               <p className="sidebar-summary-name">{vehicleName}</p>
               {data.vehicle.immat && <p className="sidebar-summary-detail">{data.vehicle.immat}</p>}
-              {data.vehicle.prixAchat && <p className="sidebar-summary-detail">{parseInt(data.vehicle.prixAchat).toLocaleString('fr-FR')} €</p>}
+              {data.vehicle.prixAchat && (
+                <p className="sidebar-summary-detail">
+                  {parseInt(data.vehicle.prixAchat).toLocaleString('fr-FR')} €
+                </p>
+              )}
             </div>
           )}
         </aside>
 
         <main>
-          {active === 'vehicle' && (<>
-            <p className="page-title">Caractéristiques véhicule</p>
-            <p className="page-sub">Dictez ou saisissez les informations du véhicule</p>
-            <DicteeBlock block="vehicle" text={texts.vehicle} recording={recording} phase={phase} onRecord={toggleRecord} />
-            <div className="card">
-              <div className="grid">
-                {Object.entries(vehicleLabels).map(([k, label]) => (
-                  <div key={k} className="field">
-                    <label>{label.toUpperCase()}</label>
-                    <input type="text" value={data.vehicle[k] || ''}
-                      className={data.vehicle[k] ? 'filled' : ''}
-                      onChange={e => setData(d => ({ ...d, vehicle: { ...d.vehicle, [k]: e.target.value } }))} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>)}
+          {active === 'vehicle' && (
+            <>
+              <p className="page-title">Caractéristiques véhicule</p>
+              <p className="page-sub">Dictez ou saisissez les informations du véhicule</p>
 
-          {active === 'mechanics' && (<>
-            <p className="page-title">Mécanique</p>
-            <p className="page-sub">Dictez les travaux mécaniques à effectuer</p>
-            <DicteeBlock block="mechanics" text={texts.mechanics} recording={recording} phase={phase} onRecord={toggleRecord} />
-            <div className="card">
-              <div className="meca-grid">
-                {Object.entries(mechanicsLabels).map(([k, label]) => (
-                  <div key={k} className="meca-row">
-                    <span className="meca-label">{label}</span>
-                    <span
-                      className={data.mechanics[k] === 'OUI' ? 'badge-oui' : 'badge-non'}
-                      onClick={() => setData(d => ({ ...d, mechanics: { ...d.mechanics, [k]: d.mechanics[k] === 'OUI' ? 'NON' : 'OUI' } }))}>
-                      {data.mechanics[k] === 'OUI' ? 'OUI' : 'NON'}
-                    </span>
-                  </div>
-                ))}
-                <div className="meca-row" style={{ gridColumn: 'span 2' }}>
-                  <span className="meca-label">Autres méca (€)</span>
-                  <input type="number" className="meca-input"
-                    value={data.mechanics.autresMeca || '0'}
-                    onChange={e => setData(d => ({ ...d, mechanics: { ...d.mechanics, autresMeca: e.target.value } }))} />
+              <DicteeBlock
+                block="vehicle"
+                text={texts.vehicle}
+                recording={recording}
+                phase={phase}
+                onRecord={toggleRecord}
+              />
+
+              <div className="card">
+                <div className="grid">
+                  {Object.entries(vehicleLabels).map(([k, label]) => (
+                    <div key={k} className="field">
+                      <label>{label.toUpperCase()}</label>
+                      <input
+                        type="text"
+                        value={data.vehicle[k] || ''}
+                        className={data.vehicle[k] ? 'filled' : ''}
+                        onChange={e =>
+                          setData(d => ({
+                            ...d,
+                            vehicle: { ...d.vehicle, [k]: e.target.value },
+                          }))
+                        }
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
-          </>)}
+            </>
+          )}
 
-          {active === 'body' && (<>
-            <p className="page-title">Carrosserie</p>
-            <p className="page-sub">Dictez les travaux de carrosserie ligne par ligne</p>
-            <LinesBlock block="body" text={texts.body} prefix="CA" recording={recording} phase={phase} onRecord={toggleRecord} lines={data.body} setData={setData} />
-          </>)}
+          {active === 'mechanics' && (
+            <>
+              <p className="page-title">Mécanique</p>
+              <p className="page-sub">Dictez les travaux mécaniques à effectuer</p>
 
-          {active === 'cell' && (<>
-            <p className="page-title">Cellule</p>
-            <p className="page-sub">Dictez les travaux sur la cellule ligne par ligne</p>
-            <LinesBlock block="cell" text={texts.cell} prefix="CE" recording={recording} phase={phase} onRecord={toggleRecord} lines={data.cell} setData={setData} />
-          </>)}
+              <DicteeBlock
+                block="mechanics"
+                text={texts.mechanics}
+                recording={recording}
+                phase={phase}
+                onRecord={toggleRecord}
+              />
 
-          {active === 'validation' && (<>
-            <p className="page-title">Validation finale</p>
-            <p className="page-sub">Vérifiez les informations avant de générer le fichier Excel</p>
-            <RecapCard data={data} vehicleLabels={vehicleLabels} mechanicsLabels={mechanicsLabels} />
-          </>)}
+              <div className="card">
+                <div className="meca-grid">
+                  {Object.entries(mechanicsLabels).map(([k, label]) => (
+                    <div key={k} className="meca-row">
+                      <span className="meca-label">{label}</span>
+                      <span
+                        className={data.mechanics[k] === 'OUI' ? 'badge-oui' : 'badge-non'}
+                        onClick={() =>
+                          setData(d => ({
+                            ...d,
+                            mechanics: {
+                              ...d.mechanics,
+                              [k]: d.mechanics[k] === 'OUI' ? 'NON' : 'OUI',
+                            },
+                          }))
+                        }
+                      >
+                        {data.mechanics[k] === 'OUI' ? 'OUI' : 'NON'}
+                      </span>
+                    </div>
+                  ))}
+
+                  <div className="meca-row" style={{ gridColumn: 'span 2' }}>
+                    <span className="meca-label">Autres méca (€)</span>
+                    <input
+                      type="number"
+                      className="meca-input"
+                      value={data.mechanics.autresMeca || '0'}
+                      onChange={e =>
+                        setData(d => ({
+                          ...d,
+                          mechanics: {
+                            ...d.mechanics,
+                            autresMeca: e.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {active === 'body' && (
+            <>
+              <p className="page-title">Carrosserie</p>
+              <p className="page-sub">Dictez les travaux de carrosserie ligne par ligne</p>
+
+              <LinesBlock
+                block="body"
+                text={texts.body}
+                prefix="CA"
+                recording={recording}
+                phase={phase}
+                onRecord={toggleRecord}
+                lines={data.body}
+                setData={setData}
+              />
+            </>
+          )}
+
+          {active === 'cell' && (
+            <>
+              <p className="page-title">Cellule</p>
+              <p className="page-sub">Dictez les travaux sur la cellule ligne par ligne</p>
+
+              <LinesBlock
+                block="cell"
+                text={texts.cell}
+                prefix="CE"
+                recording={recording}
+                phase={phase}
+                onRecord={toggleRecord}
+                lines={data.cell}
+                setData={setData}
+              />
+            </>
+          )}
+
+          {active === 'validation' && (
+            <>
+              <p className="page-title">Validation finale</p>
+              <p className="page-sub">Vérifiez les informations avant de générer le fichier Excel</p>
+
+              <RecapCard
+                data={data}
+                vehicleLabels={vehicleLabels}
+                mechanicsLabels={mechanicsLabels}
+              />
+            </>
+          )}
 
           <div className="actions">
             <div className="nav-btns">
               {stepIndex > 0 && (
-                <button className="btn-secondary" onClick={() => setActive(STEPS[stepIndex - 1].id)}>← Précédent</button>
+                <button
+                  className="btn-secondary"
+                  onClick={() => setActive(STEPS[stepIndex - 1].id)}
+                >
+                  ← Précédent
+                </button>
               )}
+
               {stepIndex < STEPS.length - 1 && (
-                <button className="btn-primary" onClick={() => setActive(STEPS[stepIndex + 1].id)}>
+                <button
+                  className="btn-primary"
+                  onClick={() => setActive(STEPS[stepIndex + 1].id)}
+                >
                   {STEPS[stepIndex + 1].label} →
                 </button>
               )}
             </div>
+
             {active === 'validation' && (
-              <button className="btn-excel" onClick={generateExcel}>Générer le fichier Excel</button>
+              <button className="btn-excel" onClick={generateExcel}>
+                Générer le fichier Excel
+              </button>
             )}
-            {status && <p className={`status${phase === 'analyzing' ? ' status-pulse' : ''}`}>{status}</p>}
+
+            {status && (
+              <p className={`status${phase === 'transcribing' ? ' status-pulse' : ''}`}>
+                {status}
+              </p>
+            )}
           </div>
         </main>
       </div>
@@ -311,19 +444,29 @@ function App() {
 
 function DicteeBlock({ block, text, recording, phase, onRecord }) {
   const isRecording = recording === block;
-  const isAnalyzing = phase === 'analyzing' && !isRecording;
-  const isTranscribing = phase === 'transcribing' && !isRecording;
+  const isProcessing = phase === 'transcribing' && !isRecording;
+
   return (
     <div className="card">
       <div className="dictee-inner">
         <span className="dictee-title">Dictée vocale</span>
-        {!isRecording && !isAnalyzing && !isTranscribing && <span className="dictee-badge">Analyse GPT auto</span>}
-        {isTranscribing && <span className="dictee-badge status-pulse">Transcription…</span>}
-        {isAnalyzing && <span className="dictee-badge-analyzing">Analyse GPT…</span>}
+
+        {!isRecording && !isProcessing && (
+          <span className="dictee-badge">Transcription + analyse auto</span>
+        )}
+
+        {isProcessing && (
+          <span className="dictee-badge-analyzing">Transcription + analyse…</span>
+        )}
       </div>
+
       {text && <p className="transcript">{text}</p>}
-      <button className={`btn-mic${isRecording ? ' recording' : ''}`} onClick={() => onRecord(block)}
-        disabled={phase !== 'idle' && phase !== 'recording'}>
+
+      <button
+        className={`btn-mic${isRecording ? ' recording' : ''}`}
+        onClick={() => onRecord(block)}
+        disabled={phase !== 'idle' && phase !== 'recording'}
+      >
         {isRecording ? '⏹ Arrêter' : '🎙 Activer la dictée'}
       </button>
     </div>
@@ -331,79 +474,184 @@ function DicteeBlock({ block, text, recording, phase, onRecord }) {
 }
 
 function LinesBlock({ block, text, prefix, recording, phase, onRecord, lines, setData }) {
-  function add() { setData(d => ({ ...d, [block]: [...d[block], { id: `${Date.now()}-${Math.random()}`, desc: '', amount: '' }] })); }
-  function update(id, field, value) { setData(d => ({ ...d, [block]: d[block].map(l => l.id === id ? { ...l, [field]: value } : l) })); }
-  function remove(id) { setData(d => ({ ...d, [block]: d[block].filter(l => l.id !== id) })); }
-  return (<>
-    <DicteeBlock block={block} text={text} recording={recording} phase={phase} onRecord={onRecord} />
-    <div className="card">
-      {lines.length === 0 && <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '8px' }}>Aucune ligne -- dictez ou ajoutez manuellement.</p>}
-      {lines.map((line, i) => (
-        <div className="line-row" key={line.id || i}>
-          <span className="line-ref">{prefix}{String(i + 1).padStart(2, '0')}</span>
-          <input type="text" className="line-desc" value={line.desc}
-            onChange={e => update(line.id, 'desc', e.target.value)} placeholder="Description" />
-          <input type="number" className="line-amount" value={line.amount}
-            onChange={e => update(line.id, 'amount', e.target.value)} placeholder="0 €" />
-          <button className="btn-del" onClick={() => remove(line.id)}>✕</button>
-        </div>
-      ))}
-      <button className="btn-add" onClick={add}>+ Ajouter une ligne</button>
-    </div>
-  </>);
+  function add() {
+    setData(d => ({
+      ...d,
+      [block]: [
+        ...d[block],
+        { id: `${Date.now()}-${Math.random()}`, desc: '', amount: '' },
+      ],
+    }));
+  }
+
+  function update(id, field, value) {
+    setData(d => ({
+      ...d,
+      [block]: d[block].map(l =>
+        l.id === id ? { ...l, [field]: value } : l
+      ),
+    }));
+  }
+
+  function remove(id) {
+    setData(d => ({
+      ...d,
+      [block]: d[block].filter(l => l.id !== id),
+    }));
+  }
+
+  return (
+    <>
+      <DicteeBlock
+        block={block}
+        text={text}
+        recording={recording}
+        phase={phase}
+        onRecord={onRecord}
+      />
+
+      <div className="card">
+        {lines.length === 0 && (
+          <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '8px' }}>
+            Aucune ligne -- dictez ou ajoutez manuellement.
+          </p>
+        )}
+
+        {lines.map((line, i) => (
+          <div className="line-row" key={line.id || i}>
+            <span className="line-ref">{prefix}{String(i + 1).padStart(2, '0')}</span>
+
+            <input
+              type="text"
+              className="line-desc"
+              value={line.desc}
+              onChange={e => update(line.id, 'desc', e.target.value)}
+              placeholder="Description"
+            />
+
+            <input
+              type="number"
+              className="line-amount"
+              value={line.amount}
+              onChange={e => update(line.id, 'amount', e.target.value)}
+              placeholder="0 €"
+            />
+
+            <button className="btn-del" onClick={() => remove(line.id)}>
+              ✕
+            </button>
+          </div>
+        ))}
+
+        <button className="btn-add" onClick={add}>
+          + Ajouter une ligne
+        </button>
+      </div>
+    </>
+  );
 }
 
 function RecapCard({ data, vehicleLabels, mechanicsLabels }) {
   const v = data.vehicle;
   const m = data.mechanics;
   const oui = Object.entries(mechanicsLabels).filter(([k]) => m[k] === 'OUI');
-  return (<>
-    <div className="card" style={{ borderTop: '2px solid #2563eb' }}>
-      <h2>Véhicule</h2>
-      <div className="recap-grid">
-        {Object.entries(vehicleLabels).map(([k, label]) => v[k] ? (
-          <div key={k} className="recap-field">
-            <strong>{label}</strong>
-            <span>{v[k]}</span>
-          </div>
-        ) : null)}
+
+  return (
+    <>
+      <div className="card" style={{ borderTop: '2px solid #2563eb' }}>
+        <h2>Véhicule</h2>
+
+        <div className="recap-grid">
+          {Object.entries(vehicleLabels).map(([k, label]) =>
+            v[k] ? (
+              <div key={k} className="recap-field">
+                <strong>{label}</strong>
+                <span>{v[k]}</span>
+              </div>
+            ) : null
+          )}
+        </div>
       </div>
-    </div>
-    <div className="card" style={{ borderTop: '2px solid #16a34a' }}>
-      <h2>Mécanique</h2>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-        {oui.length === 0
-          ? <span style={{ fontSize: '13px', color: '#9ca3af' }}>Aucun travail mécanique</span>
-          : oui.map(([k, label]) => <span key={k} className="badge-oui">{label}</span>)
-        }
-        {m.autresMeca && m.autresMeca !== '0' && <span className="badge-oui">Autres : {m.autresMeca} €</span>}
+
+      <div className="card" style={{ borderTop: '2px solid #16a34a' }}>
+        <h2>Mécanique</h2>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          {oui.length === 0 ? (
+            <span style={{ fontSize: '13px', color: '#9ca3af' }}>
+              Aucun travail mécanique
+            </span>
+          ) : (
+            oui.map(([k, label]) => (
+              <span key={k} className="badge-oui">
+                {label}
+              </span>
+            ))
+          )}
+
+          {m.autresMeca && m.autresMeca !== '0' && (
+            <span className="badge-oui">
+              Autres : {m.autresMeca} €
+            </span>
+          )}
+        </div>
       </div>
-    </div>
-    {data.body.length > 0 && (
-      <div className="card" style={{ borderTop: '2px solid #d97706' }}>
-        <h2>Carrosserie</h2>
-        {data.body.map((l, i) => (
-          <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #f3f4f6', fontSize: '13px' }}>
-            <span style={{ color: '#9ca3af', minWidth: '38px', fontFamily: 'monospace' }}>CA{String(i+1).padStart(2,'0')}</span>
-            <span style={{ flex: 1 }}>{l.desc}</span>
-            {l.amount && <span style={{ fontWeight: 500 }}>{l.amount} €</span>}
-          </div>
-        ))}
-      </div>
-    )}
-    {data.cell.length > 0 && (
-      <div className="card" style={{ borderTop: '2px solid #7c3aed' }}>
-        <h2>Cellule</h2>
-        {data.cell.map((l, i) => (
-          <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #f3f4f6', fontSize: '13px' }}>
-            <span style={{ color: '#9ca3af', minWidth: '38px', fontFamily: 'monospace' }}>CE{String(i+1).padStart(2,'0')}</span>
-            <span style={{ flex: 1 }}>{l.desc}</span>
-            {l.amount && <span style={{ fontWeight: 500 }}>{l.amount} €</span>}
-          </div>
-        ))}
-      </div>
-    )}
-  </>);
+
+      {data.body.length > 0 && (
+        <div className="card" style={{ borderTop: '2px solid #d97706' }}>
+          <h2>Carrosserie</h2>
+
+          {data.body.map((l, i) => (
+            <div
+              key={l.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                padding: '4px 0',
+                borderBottom: '1px solid #f3f4f6',
+                fontSize: '13px',
+              }}
+            >
+              <span style={{ color: '#9ca3af', minWidth: '38px', fontFamily: 'monospace' }}>
+                CA{String(i + 1).padStart(2, '0')}
+              </span>
+
+              <span style={{ flex: 1 }}>{l.desc}</span>
+
+              {l.amount && <span style={{ fontWeight: 500 }}>{l.amount} €</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {data.cell.length > 0 && (
+        <div className="card" style={{ borderTop: '2px solid #7c3aed' }}>
+          <h2>Cellule</h2>
+
+          {data.cell.map((l, i) => (
+            <div
+              key={l.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                padding: '4px 0',
+                borderBottom: '1px solid #f3f4f6',
+                fontSize: '13px',
+              }}
+            >
+              <span style={{ color: '#9ca3af', minWidth: '38px', fontFamily: 'monospace' }}>
+                CE{String(i + 1).padStart(2, '0')}
+              </span>
+
+              <span style={{ flex: 1 }}>{l.desc}</span>
+
+              {l.amount && <span style={{ fontWeight: 500 }}>{l.amount} €</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
 }
 
 createRoot(document.getElementById('root')).render(<App />);
