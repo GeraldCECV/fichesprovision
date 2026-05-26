@@ -49,6 +49,12 @@ const initialState = {
   cell: [],
 };
 
+function capitalizeFirst(str) {
+  const value = String(str || '').trim();
+  if (!value) return '';
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 function extractLines(text) {
   const raw = String(text || '').replace(/\s+/g, ' ').trim();
 
@@ -73,7 +79,7 @@ function extractLines(text) {
         pending.push(descPart);
       }
 
-      const desc = pending.join(' ').trim();
+      const desc = capitalizeFirst(pending.join(' ').trim());
 
       if (desc) {
         lines.push({
@@ -92,7 +98,7 @@ function extractLines(text) {
   if (pending.length) {
     lines.push({
       id: `${Date.now()}-${Math.random()}`,
-      desc: pending.join(' ').trim(),
+      desc: capitalizeFirst(pending.join(' ').trim()),
       amount: '',
     });
   }
@@ -179,7 +185,6 @@ function App() {
 
           const transcript = json.text || '';
           const d = json.data || {};
-
           const parsedLines = extractLines(transcript);
 
           setTexts(t => ({
@@ -570,7 +575,7 @@ function LinesBlock({ block, text, prefix, recording, phase, onRecord, lines, se
       ...d,
       [block]: d[block].map(l =>
         l.id === id
-          ? { ...l, [field]: value }
+          ? { ...l, [field]: field === 'desc' ? capitalizeFirst(value) : value }
           : l
       ),
     }));
