@@ -65,20 +65,31 @@ function extractLines(text) {
   return lines;
 }
 
+// Etapes du statut pour feedback progressif
+const STATUS = {
+  IDLE: '',
+  RECORDING: 'Enregistrement en cours…',
+  TRANSCRIBING: 'Transcription…',
+  ANALYZING: 'Analyse GPT en cours…',
+  DONE: '',
+};
+
 function App() {
   const [active, setActive]     = useState('vehicle');
   const [data, setData]         = useState(initialState);
   const [texts, setTexts]       = useState({ vehicle: '', mechanics: '', body: '', cell: '' });
   const [recording, setRecording] = useState(null);
   const [status, setStatus]     = useState('');
+  const [phase, setPhase]       = useState('idle'); // 'idle' | 'recording' | 'transcribing' | 'analyzing'
   const recorderRef = useRef(null);
   const chunksRef   = useRef([]);
   const stepIndex   = STEPS.findIndex(s => s.id === active);
-  const progress    = ((stepIndex) / (STEPS.length - 1)) * 100;
+  const progress    = (stepIndex / (STEPS.length - 1)) * 100;
 
   async function analyze(block, text) {
     if (!text.trim()) return;
-    setStatus('Analyse en cours…');
+    setPhase('analyzing');
+    setStatus(STATUS.ANALYZING);
     try {
       const res  = await fetch(`${API_URL}/api/analyze-full`, {
         method: 'POST',
@@ -86,7 +97,7 @@ function App() {
         body: JSON.stringify({ text }),
       });
       const json = await res.json();
-      if (json.error) { setStatus('Erreur : ' + json.error); return; }
+      if (json.error) { setStatus('Erreur : ' + json.error); setPhase('idle'); return; }
       const d = json.data || {};
       const nonEmpty = obj => obj ? Object.fromEntries(
         Object.entries(obj).filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '' && v !== '0')
@@ -99,7 +110,8 @@ function App() {
         cell:  d.cell && d.cell.length  ? d.cell  : prev.cell,
       }));
       setStatus('');
-    } catch (e) { setStatus('Erreur : ' + e.message); }
+      setPhase('idle');
+    } catch (e) { setStatus('Erreur : ' + e.message); setPhase('idle'); }
   }
 
   async function toggleRecord(block) {
@@ -114,7 +126,9 @@ function App() {
       rec.ondataavailable = e => { if (e.data.size) chunksRef.current.push(e.data); };
       rec.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
-        setRecording(null); setStatus('Transcription…');
+        setRecording(null);
+        setPhase('transcribing');
+        setStatus(STATUS.TRANSCRIBING);
         try {
           const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
           const ext  = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
@@ -124,16 +138,24 @@ function App() {
           const trj = await tr.json();
           if (!tr.ok) throw new Error(trj.error || 'Erreur transcription');
           const transcript = trj.text || '';
+          // Afficher la transcription immédiatement
           setTexts(t => ({ ...t, [block]: transcript }));
           if (block === 'body' || block === 'cell') {
             const nl = extractLines(transcript);
             if (nl.length) setData(d => ({ ...d, [block]: [...d[block], ...nl] }));
             setStatus('');
-          } else { await analyze(block, transcript); }
-        } catch (e) { setStatus('Erreur : ' + e.message); }
+            setPhase('idle');
+          } else {
+            // Lancer l'analyse sans attendre l'affichage
+            await analyze(block, transcript);
+          }
+        } catch (e) { setStatus('Erreur : ' + e.message); setPhase('idle'); }
       };
-      rec.start(); setRecording(block); setStatus('Enregistrement…');
-    } catch (e) { setStatus('Erreur micro : ' + e.message); }
+      rec.start();
+      setRecording(block);
+      setPhase('recording');
+      setStatus(STATUS.RECORDING);
+    } catch (e) { setStatus('Erreur micro : ' + e.message); setPhase('idle'); }
   }
 
   async function generateExcel() {
@@ -156,8 +178,8 @@ function App() {
     } catch (e) { setStatus('Erreur : ' + e.message); }
   }
 
-  const commercial = data.vehicle.commercial || '';
-  const initiale   = commercial ? commercial.trim()[0].toUpperCase() : '';
+  const commercial  = data.vehicle.commercial || '';
+  const initiale    = commercial ? commercial.trim()[0].toUpperCase() : '';
   const vehicleName = [data.vehicle.marque, data.vehicle.modele].filter(Boolean).join(' ');
 
   return (
@@ -165,8 +187,7 @@ function App() {
       <header className="topbar">
         <div className="topbar-left">
           <img src="/logo_ypocamp.jpeg" alt="Ypocamp" className="logo" />
-          <span className="topbar-sep">/</span>
-          <span className="topbar-title">Provision VO</span>
+          <span className="topbar-sep">/</span>          <span className="topbar-title">Provision VO</span>
           <span className="topbar-sep">/</span>
           <span className="topbar-sub">Nouvelle fiche</span>
         </div>
@@ -187,12 +208,12 @@ function App() {
           <p className="nav-label">Saisie</p>
           {STEPS.map((s, i) => (
             <button key={s.id}
-              className={active === s.id ? 'active' : stepIndex > i ? 'done' : ''}              onClick={() => setActive(s.id)}>
+              className={active === s.id ? 'active' : stepIndex > i ? 'done' : ''}
+              onClick={() => setActive(s.id)}>
               <span className="step-circle">{stepIndex > i ? '✓' : i + 1}</span>
               {s.label}
             </button>
           ))}
-
           {vehicleName && (
             <div className="sidebar-summary">
               <p className="sidebar-summary-label">En cours</p>
@@ -207,7 +228,7 @@ function App() {
           {active === 'vehicle' && (<>
             <p className="page-title">Caractéristiques véhicule</p>
             <p className="page-sub">Dictez ou saisissez les informations du véhicule</p>
-            <DicteeBlock block="vehicle" text={texts.vehicle} recording={recording} onRecord={toggleRecord} />
+            <DicteeBlock block="vehicle" text={texts.vehicle} recording={recording} phase={phase} onRecord={toggleRecord} />
             <div className="card">
               <div className="grid">
                 {Object.entries(vehicleLabels).map(([k, label]) => (
@@ -225,7 +246,7 @@ function App() {
           {active === 'mechanics' && (<>
             <p className="page-title">Mécanique</p>
             <p className="page-sub">Dictez les travaux mécaniques à effectuer</p>
-            <DicteeBlock block="mechanics" text={texts.mechanics} recording={recording} onRecord={toggleRecord} />
+            <DicteeBlock block="mechanics" text={texts.mechanics} recording={recording} phase={phase} onRecord={toggleRecord} />
             <div className="card">
               <div className="meca-grid">
                 {Object.entries(mechanicsLabels).map(([k, label]) => (
@@ -251,13 +272,13 @@ function App() {
           {active === 'body' && (<>
             <p className="page-title">Carrosserie</p>
             <p className="page-sub">Dictez les travaux de carrosserie ligne par ligne</p>
-            <LinesBlock block="body" text={texts.body} prefix="CA" recording={recording} onRecord={toggleRecord} lines={data.body} setData={setData} />
+            <LinesBlock block="body" text={texts.body} prefix="CA" recording={recording} phase={phase} onRecord={toggleRecord} lines={data.body} setData={setData} />
           </>)}
 
           {active === 'cell' && (<>
             <p className="page-title">Cellule</p>
             <p className="page-sub">Dictez les travaux sur la cellule ligne par ligne</p>
-            <LinesBlock block="cell" text={texts.cell} prefix="CE" recording={recording} onRecord={toggleRecord} lines={data.cell} setData={setData} />
+            <LinesBlock block="cell" text={texts.cell} prefix="CE" recording={recording} phase={phase} onRecord={toggleRecord} lines={data.cell} setData={setData} />
           </>)}
 
           {active === 'validation' && (<>
@@ -280,7 +301,7 @@ function App() {
             {active === 'validation' && (
               <button className="btn-excel" onClick={generateExcel}>Générer le fichier Excel</button>
             )}
-            {status && <p className="status">{status}</p>}
+            {status && <p className={`status${phase === 'analyzing' ? ' status-pulse' : ''}`}>{status}</p>}
           </div>
         </main>
       </div>
@@ -288,27 +309,33 @@ function App() {
   );
 }
 
-function DicteeBlock({ block, text, recording, onRecord }) {
+function DicteeBlock({ block, text, recording, phase, onRecord }) {
+  const isRecording = recording === block;
+  const isAnalyzing = phase === 'analyzing' && !isRecording;
+  const isTranscribing = phase === 'transcribing' && !isRecording;
   return (
     <div className="card">
       <div className="dictee-inner">
         <span className="dictee-title">Dictée vocale</span>
-        {recording !== block && <span className="dictee-badge">Analyse GPT auto</span>}
+        {!isRecording && !isAnalyzing && !isTranscribing && <span className="dictee-badge">Analyse GPT auto</span>}
+        {isTranscribing && <span className="dictee-badge status-pulse">Transcription…</span>}
+        {isAnalyzing && <span className="dictee-badge-analyzing">Analyse GPT…</span>}
       </div>
       {text && <p className="transcript">{text}</p>}
-      <button className={`btn-mic${recording === block ? ' recording' : ''}`} onClick={() => onRecord(block)}>
-        {recording === block ? '⏹ Arrêter' : '🎙 Activer la dictée'}
+      <button className={`btn-mic${isRecording ? ' recording' : ''}`} onClick={() => onRecord(block)}
+        disabled={phase !== 'idle' && phase !== 'recording'}>
+        {isRecording ? '⏹ Arrêter' : '🎙 Activer la dictée'}
       </button>
     </div>
   );
 }
 
-function LinesBlock({ block, text, prefix, recording, onRecord, lines, setData }) {
+function LinesBlock({ block, text, prefix, recording, phase, onRecord, lines, setData }) {
   function add() { setData(d => ({ ...d, [block]: [...d[block], { id: `${Date.now()}-${Math.random()}`, desc: '', amount: '' }] })); }
   function update(id, field, value) { setData(d => ({ ...d, [block]: d[block].map(l => l.id === id ? { ...l, [field]: value } : l) })); }
   function remove(id) { setData(d => ({ ...d, [block]: d[block].filter(l => l.id !== id) })); }
   return (<>
-    <DicteeBlock block={block} text={text} recording={recording} onRecord={onRecord} />
+    <DicteeBlock block={block} text={text} recording={recording} phase={phase} onRecord={onRecord} />
     <div className="card">
       {lines.length === 0 && <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '8px' }}>Aucune ligne -- dictez ou ajoutez manuellement.</p>}
       {lines.map((line, i) => (
