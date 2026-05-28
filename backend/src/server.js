@@ -16,9 +16,7 @@ const port = Number(process.env.PORT || 8080);
 
 const upload = multer({
   dest: '/tmp',
-  limits: {
-    fileSize: 25 * 1024 * 1024,
-  },
+  limits: { fileSize: 25 * 1024 * 1024 },
 });
 
 app.use(express.json({ limit: '20mb' }));
@@ -51,13 +49,8 @@ app.post('/api/analyze', (req, res) => {
 
 app.post('/api/transcribe-and-analyze', upload.single('audio'), async (req, res) => {
   try {
-    if (!openai) {
-      return res.status(400).json({ error: 'OPENAI_API_KEY manquante.' });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ error: 'Aucun audio reçu.' });
-    }
+    if (!openai) return res.status(400).json({ error: 'OPENAI_API_KEY manquante.' });
+    if (!req.file) return res.status(400).json({ error: 'Aucun audio reçu.' });
 
     const mime = req.file.mimetype || 'audio/webm';
     let ext = 'webm';
@@ -79,41 +72,19 @@ app.post('/api/transcribe-and-analyze', upload.single('audio'), async (req, res)
       language: 'fr',
       prompt: `
 Contexte : concession camping-car Ypocamp.
-
-Transcription d'une dictée métier VO.
-
-Important :
-- MEC = mise en circulation.
-- Préserver les immatriculations françaises.
-- Préserver les montants en euros.
-- Préserver les noms de marques camping-car.
-- "cession Odoo" peut être entendu "session Odoo".
-
-Marques fréquentes :
-Hymer, Fleurette, Rapido, Pilote, Chausson,
-Challenger, Adria, Bürstner, Carthago,
-McLouis, Font Vendôme, Bavaria, Dethleffs,
-Benimar, Burstner, Carado, Dreamer,
-Notin, Itineo, Rimor, Sunlight.
-
-Travaux fréquents :
-CT, vidange, courroie, pneus, batterie,
-carrosserie, cellule, baie, lanterneau,
-frigo, chauffage, humidité, infiltration,
-joint de coiffe, panneau solaire,
-store, moustiquaire, marchepied.
+Dictée métier VO camping-car.
+Préserver marques, modèles, immatriculations, montants, MEC, cession Odoo, travaux carrosserie, cellule et mécanique.
+Pour les pneus : préserver si le commercial dit avant, arrière, pneus avant, pneus arrière, les 4 pneus.
 `,
     });
 
     const text = transcription.text || '';
-
     fs.unlink(req.file.path, () => {});
 
     const prompt = `
 Tu es un assistant expert Ypocamp.
 
-Analyse cette dictée de reprise VO camping-car
-et retourne UNIQUEMENT un JSON valide.
+Analyse cette dictée de reprise VO camping-car et retourne UNIQUEMENT un JSON valide.
 
 Dictée :
 "${text}"
@@ -137,6 +108,8 @@ Format JSON attendu :
     "vidangeSimple": "NON",
     "vidangeComplete": "NON",
     "courroie": "NON",
+    "pneusAvant": "NON",
+    "pneusArriere": "NON",
     "pneus": "0",
     "batterie": "NON",
     "autresMeca": 0
@@ -145,15 +118,8 @@ Format JSON attendu :
   "cell": []
 }
 
-Règles véhicule :
-- MEC au format JJ/MM/AAAA.
-- Immatriculation au format XX-000-XX si possible.
-- Montants uniquement en chiffres.
-- Commercial = prénom uniquement.
-- Si cession Odoo non mentionnée, mettre 0.
-
 Règles mécanique :
-- Tous les champs mécanique = NON par défaut.
+- Tous les champs OUI/NON = NON par défaut.
 - "prépa", "préparation", "esthétique", "nettoyage" = prepEsthetique OUI.
 - "CT", "contrôle technique" = ct OUI.
 - "vidange" = vidangeSimple OUI.
@@ -161,23 +127,14 @@ Règles mécanique :
 - "courroie", "courroie de distribution", "courroie de distri" = courroie OUI.
 - "batterie" = batterie OUI.
 
-Gestion des pneus :
-- Le champ "pneus" doit retourner uniquement "0", "1" ou "2".
-- "pneus avant" = pneus : "1".
-- "pneus arrière" = pneus : "1".
-- "changer les pneus avant" = pneus : "1".
-- "changer les pneus arrière" = pneus : "1".
-- "2 pneus" = pneus : "1".
-- "1 train de pneus" = pneus : "1".
-- "un train de pneus" = pneus : "1".
-- "4 pneus" = pneus : "2".
-- "quatre pneus" = pneus : "2".
-- "2 trains de pneus" = pneus : "2".
-- "deux trains de pneus" = pneus : "2".
-- Si le commercial dit seulement "pneus", mettre pneus : "1".
-- 1 = 1 train = 2 pneus = 400 €.
-- 2 = 2 trains = 4 pneus = 800 €.
-- 0 = aucun pneu.
+Règles pneus :
+- "pneus avant", "changer les pneus avant", "train avant" = pneusAvant OUI.
+- "pneus arrière", "pneus arriere", "changer les pneus arrière", "train arrière" = pneusArriere OUI.
+- "4 pneus", "quatre pneus", "les pneus", "tous les pneus" = pneusAvant OUI et pneusArriere OUI.
+- Si seulement "pneus" sans précision, mettre pneusAvant OUI.
+- pneus = "0" si aucun.
+- pneus = "1" si pneusAvant OUI ou pneusArriere OUI.
+- pneus = "2" si pneusAvant OUI et pneusArriere OUI.
 
 Règles travaux :
 - body = carrosserie.
@@ -196,12 +153,7 @@ Retourne uniquement le JSON, sans markdown.
     });
 
     const raw = completion.choices[0]?.message?.content || '{}';
-
-    const clean = raw
-      .replace(/```json/g, '')
-      .replace(/```/g, '')
-      .trim();
-
+    const clean = raw.replace(/```json/g, '').replace(/```/g, '').trim();
     const data = JSON.parse(clean);
 
     if (!data.vehicle) data.vehicle = {};
@@ -209,31 +161,16 @@ Retourne uniquement le JSON, sans markdown.
     if (!Array.isArray(data.body)) data.body = [];
     if (!Array.isArray(data.cell)) data.cell = [];
 
-    data.mechanics.pneus = normalizePneus(data.mechanics.pneus);
+    data.mechanics = normalizeMechanics(data.mechanics);
 
-    data.body = data.body.map(line => ({
-      ...line,
-      id: createId(),
-    }));
+    data.body = data.body.map(line => ({ ...line, id: createId() }));
+    data.cell = data.cell.map(line => ({ ...line, id: createId() }));
 
-    data.cell = data.cell.map(line => ({
-      ...line,
-      id: createId(),
-    }));
-
-    res.json({
-      text,
-      data,
-    });
+    res.json({ text, data });
 
   } catch (error) {
-    if (req.file?.path) {
-      fs.unlink(req.file.path, () => {});
-    }
-
-    res.status(500).json({
-      error: error.message || 'Erreur transcription + analyse.',
-    });
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    res.status(500).json({ error: error.message || 'Erreur transcription + analyse.' });
   }
 });
 
@@ -257,7 +194,7 @@ app.post('/api/generate-excel', async (req, res) => {
     const sheet = workbook.worksheets[0];
 
     const v = payload.vehicle || {};
-    const m = payload.mechanics || {};
+    const m = normalizeMechanics(payload.mechanics || {});
     const body = Array.isArray(payload.body) ? payload.body : [];
     const cell = Array.isArray(payload.cell) ? payload.cell : [];
 
@@ -277,7 +214,7 @@ app.post('/api/generate-excel', async (req, res) => {
     set(sheet, 'D20', m.vidangeComplete || 'NON');
     set(sheet, 'D21', m.courroie || 'NON');
     set(sheet, 'D22', 'NON');
-    set(sheet, 'D23', normalizePneus(m.pneus));
+    set(sheet, 'D23', m.pneus);
     set(sheet, 'D24', m.batterie || 'NON');
     set(sheet, 'D25', number(m.autresMeca || 0));
 
@@ -310,7 +247,6 @@ app.post('/api/generate-excel', async (req, res) => {
 
     set(sheet, 'A54', 'Pack Fraicheur');
     set(sheet, 'A55', "Test d'humidité");
-
     set(sheet, 'E58', getMauvaiseSurprise(v.mec));
 
     const filename =
@@ -360,6 +296,65 @@ function validatePayload(payload) {
     .map(([, label]) => label);
 }
 
+function normalizeMechanics(mechanics = {}) {
+  const pneusAvant = isOui(mechanics.pneusAvant) ? 'OUI' : 'NON';
+  const pneusArriere = isOui(mechanics.pneusArriere) ? 'OUI' : 'NON';
+
+  let pneus = '0';
+
+  if (pneusAvant === 'OUI' && pneusArriere === 'OUI') pneus = '2';
+  else if (pneusAvant === 'OUI' || pneusArriere === 'OUI') pneus = '1';
+  else pneus = normalizePneus(mechanics.pneus);
+
+  return {
+    prepEsthetique: isOui(mechanics.prepEsthetique) ? 'OUI' : 'NON',
+    ct: isOui(mechanics.ct) ? 'OUI' : 'NON',
+    vidangeSimple: isOui(mechanics.vidangeSimple) ? 'OUI' : 'NON',
+    vidangeComplete: isOui(mechanics.vidangeComplete) ? 'OUI' : 'NON',
+    courroie: isOui(mechanics.courroie) ? 'OUI' : 'NON',
+    pneusAvant,
+    pneusArriere,
+    pneus,
+    batterie: isOui(mechanics.batterie) ? 'OUI' : 'NON',
+    autresMeca: number(mechanics.autresMeca || 0),
+  };
+}
+
+function isOui(value) {
+  return String(value || '').toUpperCase().trim() === 'OUI';
+}
+
+function normalizePneus(value) {
+  const raw = String(value ?? '').toLowerCase().trim();
+
+  if (!raw || raw === 'non' || raw === '0') return '0';
+
+  if (
+    raw === '2' ||
+    raw.includes('2') ||
+    raw.includes('deux') ||
+    raw.includes('4') ||
+    raw.includes('quatre')
+  ) {
+    return '2';
+  }
+
+  if (
+    raw === '1' ||
+    raw.includes('1') ||
+    raw.includes('un') ||
+    raw.includes('oui') ||
+    raw.includes('avant') ||
+    raw.includes('arrière') ||
+    raw.includes('arriere') ||
+    raw.includes('pneu')
+  ) {
+    return '1';
+  }
+
+  return '0';
+}
+
 function set(sheet, cell, value) {
   sheet.getCell(cell).value = value;
 }
@@ -392,35 +387,6 @@ function cleanFileName(str = '') {
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function normalizePneus(value) {
-  const raw = String(value ?? '').toLowerCase().trim();
-
-  if (!raw || raw === 'non' || raw === '0') return '0';
-
-  if (
-    raw.includes('2') ||
-    raw.includes('deux') ||
-    raw.includes('4') ||
-    raw.includes('quatre')
-  ) {
-    return '2';
-  }
-
-  if (
-    raw.includes('1') ||
-    raw.includes('un') ||
-    raw.includes('oui') ||
-    raw.includes('avant') ||
-    raw.includes('arrière') ||
-    raw.includes('arriere') ||
-    raw.includes('pneu')
-  ) {
-    return '1';
-  }
-
-  return '0';
 }
 
 function getMauvaiseSurprise(mec) {
