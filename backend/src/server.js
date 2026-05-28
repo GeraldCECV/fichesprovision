@@ -616,22 +616,70 @@ function normalizeLines(lines = []) {
 function getMauvaiseSurprise(mec) {
   if (!mec) return 750;
 
-  const match = String(mec).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  const value = String(mec).trim();
 
-  if (!match) return 750;
+  let day = 1;
+  let month = 0;
+  let year = null;
 
-  const date = new Date(
-    Number(match[3]),
-    Number(match[2]) - 1,
-    Number(match[1])
+  let match = value.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
   );
 
-  const years =
-    (Date.now() - date.getTime()) /
+  if (match) {
+    day = Number(match[1]);
+    month = Number(match[2]) - 1;
+    year = Number(match[3]);
+  }
+
+  if (!year) {
+    match = value.match(
+      /^(\d{1,2})\/(\d{4})$/
+    );
+
+    if (match) {
+      month = Number(match[1]) - 1;
+      year = Number(match[2]);
+    }
+  }
+
+  if (!year) {
+    match = value.match(/^(\d{4})$/);
+
+    if (match) {
+      year = Number(match[1]);
+    }
+  }
+
+  if (!year) {
+    match = value.match(
+      /^(\d{4})-(\d{1,2})-(\d{1,2})$/
+    );
+
+    if (match) {
+      year = Number(match[1]);
+      month = Number(match[2]) - 1;
+      day = Number(match[3]);
+    }
+  }
+
+  if (!year) return 750;
+
+  const mecDate = new Date(
+    year,
+    month,
+    day
+  );
+
+  const todayDate = new Date();
+
+  const ageYears =
+    (todayDate - mecDate) /
     (1000 * 60 * 60 * 24 * 365.25);
 
-  if (years <= 4) return 250;
-  if (years <= 8) return 500;
+  if (ageYears <= 4) return 250;
+
+  if (ageYears <= 8) return 500;
 
   return 750;
 }
