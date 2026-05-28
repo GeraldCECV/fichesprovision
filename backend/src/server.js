@@ -17,15 +17,15 @@ const port = Number(process.env.PORT || 8080);
 const upload = multer({
   dest: '/tmp',
   limits: {
-    fileSize: 25 * 1024 * 1024
-  }
+    fileSize: 25 * 1024 * 1024,
+  },
 });
 
 app.use(express.json({ limit: '20mb' }));
 
 app.use(cors({
   origin: process.env.FRONTEND_ORIGIN || true,
-  credentials: true
+  credentials: true,
 }));
 
 const openai = process.env.OPENAI_API_KEY
@@ -75,7 +75,7 @@ app.post('/api/transcribe-and-analyze', upload.single('audio'), async (req, res)
 
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,
-      model: 'gpt-4o-transcribe',
+      model: 'gpt-4o-mini-transcribe',
       language: 'fr',
       prompt: `
 Contexte : concession camping-car Ypocamp.
@@ -83,10 +83,11 @@ Contexte : concession camping-car Ypocamp.
 Transcription d'une dictée métier VO.
 
 Important :
-- MEC = mise en circulation
-- préserver les immatriculations françaises
-- préserver les montants en euros
-- préserver les noms de marques camping-car
+- MEC = mise en circulation.
+- Préserver les immatriculations françaises.
+- Préserver les montants en euros.
+- Préserver les noms de marques camping-car.
+- "cession Odoo" peut être entendu "session Odoo".
 
 Marques fréquentes :
 Hymer, Fleurette, Rapido, Pilote, Chausson,
@@ -101,7 +102,7 @@ carrosserie, cellule, baie, lanterneau,
 frigo, chauffage, humidité, infiltration,
 joint de coiffe, panneau solaire,
 store, moustiquaire, marchepied.
-`
+`,
     });
 
     const text = transcription.text || '';
@@ -136,7 +137,7 @@ Format JSON attendu :
     "vidangeSimple": "NON",
     "vidangeComplete": "NON",
     "courroie": "NON",
-    "pneus": "NON",
+    "pneus": "0",
     "batterie": "NON",
     "autresMeca": 0
   },
@@ -144,28 +145,54 @@ Format JSON attendu :
   "cell": []
 }
 
-Règles :
+Règles véhicule :
+- MEC au format JJ/MM/AAAA.
+- Immatriculation au format XX-000-XX si possible.
+- Montants uniquement en chiffres.
+- Commercial = prénom uniquement.
+- Si cession Odoo non mentionnée, mettre 0.
+
+Règles mécanique :
 - Tous les champs mécanique = NON par défaut.
+- "prépa", "préparation", "esthétique", "nettoyage" = prepEsthetique OUI.
+- "CT", "contrôle technique" = ct OUI.
 - "vidange" = vidangeSimple OUI.
 - "vidange complète" = vidangeComplete OUI.
-- "CT" = ct OUI.
-- "courroie" = courroie OUI.
+- "courroie", "courroie de distribution", "courroie de distri" = courroie OUI.
 - "batterie" = batterie OUI.
-- "prépa", "nettoyage" = prepEsthetique OUI.
-- pneus = "OUI, 1" ou "OUI, 2".
+
+Gestion des pneus :
+- Le champ "pneus" doit retourner uniquement "0", "1" ou "2".
+- "pneus avant" = pneus : "1".
+- "pneus arrière" = pneus : "1".
+- "changer les pneus avant" = pneus : "1".
+- "changer les pneus arrière" = pneus : "1".
+- "2 pneus" = pneus : "1".
+- "1 train de pneus" = pneus : "1".
+- "un train de pneus" = pneus : "1".
+- "4 pneus" = pneus : "2".
+- "quatre pneus" = pneus : "2".
+- "2 trains de pneus" = pneus : "2".
+- "deux trains de pneus" = pneus : "2".
+- Si le commercial dit seulement "pneus", mettre pneus : "1".
+- 1 = 1 train = 2 pneus = 400 €.
+- 2 = 2 trains = 4 pneus = 800 €.
+- 0 = aucun pneu.
+
+Règles travaux :
 - body = carrosserie.
 - cell = cellule.
-- montants uniquement en chiffres.
-- commercial = prénom uniquement.
-- MEC au format JJ/MM/AAAA.
-- retourner uniquement du JSON.
+- Format ligne : { "desc": "description", "amount": 0 }.
+- Si montant non mentionné, amount = 0.
+
+Retourne uniquement le JSON, sans markdown.
 `;
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.1,
-      max_tokens: 1200
+      max_tokens: 1200,
     });
 
     const raw = completion.choices[0]?.message?.content || '{}';
@@ -182,19 +209,21 @@ Règles :
     if (!Array.isArray(data.body)) data.body = [];
     if (!Array.isArray(data.cell)) data.cell = [];
 
+    data.mechanics.pneus = normalizePneus(data.mechanics.pneus);
+
     data.body = data.body.map(line => ({
       ...line,
-      id: createId()
+      id: createId(),
     }));
 
     data.cell = data.cell.map(line => ({
       ...line,
-      id: createId()
+      id: createId(),
     }));
 
     res.json({
       text,
-      data
+      data,
     });
 
   } catch (error) {
@@ -203,7 +232,7 @@ Règles :
     }
 
     res.status(500).json({
-      error: error.message || 'Erreur transcription + analyse.'
+      error: error.message || 'Erreur transcription + analyse.',
     });
   }
 });
@@ -215,7 +244,7 @@ app.post('/api/generate-excel', async (req, res) => {
 
     if (missing.length) {
       return res.status(400).json({
-        error: `Champs obligatoires manquants : ${missing.join(', ')}`
+        error: `Champs obligatoires manquants : ${missing.join(', ')}`,
       });
     }
 
@@ -248,7 +277,7 @@ app.post('/api/generate-excel', async (req, res) => {
     set(sheet, 'D20', m.vidangeComplete || 'NON');
     set(sheet, 'D21', m.courroie || 'NON');
     set(sheet, 'D22', 'NON');
-    set(sheet, 'D23', m.pneus || 'NON');
+    set(sheet, 'D23', normalizePneus(m.pneus));
     set(sheet, 'D24', m.batterie || 'NON');
     set(sheet, 'D25', number(m.autresMeca || 0));
 
@@ -259,8 +288,8 @@ app.post('/api/generate-excel', async (req, res) => {
 
     body.slice(0, 6).forEach((line, i) => {
       const r = 29 + i;
-      set(sheet, `A${r}`, line.desc || '');
-      set(sheet, `E${r}`, number(line.amount || 0));
+      set(sheet, `A${r}`, line.desc || line.description || '');
+      set(sheet, `E${r}`, number(line.amount || line.montant || 0));
     });
 
     for (let r = 38; r <= 51; r++) {
@@ -270,8 +299,8 @@ app.post('/api/generate-excel', async (req, res) => {
 
     cell.slice(0, 14).forEach((line, i) => {
       const r = 38 + i;
-      set(sheet, `A${r}`, line.desc || '');
-      set(sheet, `E${r}`, number(line.amount || 0));
+      set(sheet, `A${r}`, line.desc || line.description || '');
+      set(sheet, `E${r}`, number(line.amount || line.montant || 0));
     });
 
     for (let r = 54; r <= 57; r++) {
@@ -303,7 +332,7 @@ app.post('/api/generate-excel', async (req, res) => {
 
   } catch (error) {
     res.status(500).json({
-      error: error.message || 'Erreur génération Excel.'
+      error: error.message || 'Erreur génération Excel.',
     });
   }
 });
@@ -319,17 +348,15 @@ function validatePayload(payload) {
     ['immat', 'Immatriculation'],
     ['prixAchat', "Prix d'achat"],
     ['cessionOdoo', 'Cession ODOO'],
-    ['commercial', 'Réalisé par']
+    ['commercial', 'Réalisé par'],
   ];
 
   return required
-    .filter(([key]) => {
-      return (
-        v[key] === undefined ||
-        v[key] === null ||
-        String(v[key]).trim() === ''
-      );
-    })
+    .filter(([key]) => (
+      v[key] === undefined ||
+      v[key] === null ||
+      String(v[key]).trim() === ''
+    ))
     .map(([, label]) => label);
 }
 
@@ -367,11 +394,39 @@ function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function normalizePneus(value) {
+  const raw = String(value ?? '').toLowerCase().trim();
+
+  if (!raw || raw === 'non' || raw === '0') return '0';
+
+  if (
+    raw.includes('2') ||
+    raw.includes('deux') ||
+    raw.includes('4') ||
+    raw.includes('quatre')
+  ) {
+    return '2';
+  }
+
+  if (
+    raw.includes('1') ||
+    raw.includes('un') ||
+    raw.includes('oui') ||
+    raw.includes('avant') ||
+    raw.includes('arrière') ||
+    raw.includes('arriere') ||
+    raw.includes('pneu')
+  ) {
+    return '1';
+  }
+
+  return '0';
+}
+
 function getMauvaiseSurprise(mec) {
   if (!mec) return 750;
 
   const value = String(mec).trim();
-
   const match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
 
   if (!match) return 750;
@@ -390,6 +445,7 @@ function getMauvaiseSurprise(mec) {
 
   if (ageYears <= 4) return 250;
   if (ageYears <= 8) return 500;
+
   return 750;
 }
 
