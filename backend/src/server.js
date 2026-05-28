@@ -11,7 +11,6 @@ import ExcelJS from 'exceljs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
-
 const port = Number(process.env.PORT || 8080);
 
 const upload = multer({
@@ -29,10 +28,67 @@ app.use(cors({
 }));
 
 const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    })
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
+
+const MOTORISATION_CATALOG = [
+  'Fiat Ducato 2.3 120 ch',
+  'Fiat Ducato 2.3 130 ch',
+  'Fiat Ducato 2.3 140 ch',
+  'Fiat Ducato 2.3 150 ch',
+  'Fiat Ducato 2.3 160 ch',
+  'Fiat Ducato 2.3 180 ch',
+  'Fiat Ducato 2.2 120 ch',
+  'Fiat Ducato 2.2 140 ch',
+  'Fiat Ducato 2.2 160 ch',
+  'Fiat Ducato 2.2 180 ch',
+
+  'Peugeot Boxer 2.0 BlueHDi 130 ch',
+  'Peugeot Boxer 2.2 BlueHDi 120 ch',
+  'Peugeot Boxer 2.2 BlueHDi 140 ch',
+  'Peugeot Boxer 2.2 BlueHDi 165 ch',
+
+  'Citroën Jumper 2.0 BlueHDi 130 ch',
+  'Citroën Jumper 2.2 BlueHDi 120 ch',
+  'Citroën Jumper 2.2 BlueHDi 140 ch',
+  'Citroën Jumper 2.2 BlueHDi 165 ch',
+
+  'Ford Transit 2.0 EcoBlue 105 ch',
+  'Ford Transit 2.0 EcoBlue 130 ch',
+  'Ford Transit 2.0 EcoBlue 170 ch',
+  'Ford Transit 2.0 EcoBlue 185 ch',
+  'Ford Transit 2.2 TDCi 125 ch',
+  'Ford Transit 2.2 TDCi 130 ch',
+  'Ford Transit 2.2 TDCi 155 ch',
+
+  'Mercedes Sprinter 2.1 CDI 143 ch',
+  'Mercedes Sprinter 2.1 CDI 163 ch',
+  'Mercedes Sprinter 2.0 CDI 150 ch',
+  'Mercedes Sprinter 2.0 CDI 170 ch',
+  'Mercedes Sprinter 2.0 CDI 190 ch',
+
+  'Renault Master 2.3 dCi 125 ch',
+  'Renault Master 2.3 dCi 130 ch',
+  'Renault Master 2.3 dCi 135 ch',
+  'Renault Master 2.3 dCi 145 ch',
+  'Renault Master 2.3 dCi 150 ch',
+  'Renault Master 2.3 dCi 165 ch',
+  'Renault Master 2.3 dCi 180 ch',
+
+  'Iveco Daily 2.3 136 ch',
+  'Iveco Daily 3.0 146 ch',
+  'Iveco Daily 3.0 160 ch',
+  'Iveco Daily 3.0 180 ch',
+
+  'Volkswagen Crafter 2.0 TDI 140 ch',
+  'Volkswagen Crafter 2.0 TDI 177 ch',
+  'Volkswagen Transporter 2.0 TDI 110 ch',
+  'Volkswagen Transporter 2.0 TDI 150 ch',
+  'Volkswagen Transporter 2.0 TDI 204 ch',
+
+  'MAN TGE 2.0 TDI 140 ch',
+  'MAN TGE 2.0 TDI 177 ch',
+];
 
 app.get('/', (_, res) => {
   res.send('Provision VO API OK');
@@ -42,53 +98,35 @@ app.get('/api/health', (_, res) => {
   res.json({ ok: true });
 });
 
-app.post(
-  '/api/transcribe-and-analyze',
-  upload.single('audio'),
-  async (req, res) => {
-    try {
-      if (!openai) {
-        return res.status(400).json({
-          error: 'OPENAI_API_KEY manquante',
-        });
-      }
+app.post('/api/transcribe-and-analyze', upload.single('audio'), async (req, res) => {
+  try {
+    if (!openai) {
+      return res.status(400).json({ error: 'OPENAI_API_KEY manquante' });
+    }
 
-      if (!req.file) {
-        return res.status(400).json({
-          error: 'Aucun audio reçu',
-        });
-      }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aucun audio reçu' });
+    }
 
-      const mime = req.file.mimetype || 'audio/webm';
+    const mime = req.file.mimetype || 'audio/webm';
+    let ext = 'webm';
 
-      let ext = 'webm';
+    if (mime.includes('mp4')) ext = 'mp4';
+    else if (mime.includes('mpeg')) ext = 'mp3';
+    else if (mime.includes('wav')) ext = 'wav';
+    else if (mime.includes('ogg')) ext = 'ogg';
 
-      if (mime.includes('mp4')) ext = 'mp4';
-      else if (mime.includes('mpeg')) ext = 'mp3';
-      else if (mime.includes('wav')) ext = 'wav';
-      else if (mime.includes('ogg')) ext = 'ogg';
+    const audioFile = await toFile(
+      fs.createReadStream(req.file.path),
+      `audio.${ext}`,
+      { type: mime }
+    );
 
-      const audioFile = await toFile(
-        fs.createReadStream(req.file.path),
-        `audio.${ext}`,
-        {
-          type: mime,
-        }
-      );
-
-      // -----------------------------
-      // TRANSCRIPTION AUDIO
-      // -----------------------------
-
-      const transcription =
-        await openai.audio.transcriptions.create({
-          file: audioFile,
-
-          model: 'gpt-4o-mini-transcribe',
-
-          language: 'fr',
-
-          prompt: `
+    const transcription = await openai.audio.transcriptions.create({
+      file: audioFile,
+      model: 'gpt-4o-mini-transcribe',
+      language: 'fr',
+      prompt: `
 Contexte : concession camping-car Ypocamp.
 
 Dictée métier VO camping-car.
@@ -105,25 +143,13 @@ Préserver :
 - travaux carrosserie
 - travaux cellule
 
-Motorisations fréquentes :
-- Fiat Ducato 2.3 130 ch
-- Fiat Ducato 2.3 140 ch
-- Fiat Ducato 2.2 140 ch
-- Fiat Ducato 2.2 180 ch
-- Peugeot Boxer 2.2 140 ch
-- Citroën Jumper 2.2 140 ch
-- Ford Transit 2.0 130 ch
-- Ford Transit 2.0 170 ch
-- Mercedes Sprinter 2.2 143 ch
-- Mercedes Sprinter 2.2 163 ch
-- Renault Master 2.3 150 ch
-- Iveco Daily 3.0 180 ch
+Catalogue motorisations fréquent :
+${MOTORISATION_CATALOG.map(item => `- ${item}`).join('\n')}
 
 Variantes orales :
 - "deux litres trois" = 2.3
 - "deux litres deux" = 2.2
 - "deux litres" = 2.0
-
 - "cent trente" = 130
 - "cent quarante" = 140
 - "cent cinquante" = 150
@@ -139,33 +165,28 @@ Porteurs :
 - sprinter = Mercedes Sprinter
 - master = Renault Master
 - daily = Iveco Daily
+- crafter = Volkswagen Crafter
+- transporter = Volkswagen Transporter
+- TGE = MAN TGE
 
 Pneus :
-- pneus avant = 1 train
-- pneus arrière = 1 train
-- 4 pneus = 2 trains
+- pneus avant = avant
+- pneus arrière = arrière
+- 4 pneus = avant + arrière
 `,
-        });
+    });
 
-      const text = transcription.text || '';
+    const text = transcription.text || '';
 
-      fs.unlink(req.file.path, () => {});
+    fs.unlink(req.file.path, () => {});
 
-      // -----------------------------
-      // ANALYSE GPT
-      // -----------------------------
-
-      const completion =
-        await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-
-          temperature: 0.1,
-
-          messages: [
-            {
-              role: 'system',
-
-              content: `
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.1,
+      messages: [
+        {
+          role: 'system',
+          content: `
 Tu es un assistant expert VO camping-car Ypocamp.
 
 Tu dois analyser la dictée et retourner uniquement un JSON valide.
@@ -183,251 +204,319 @@ Format attendu :
     "cessionOdoo": "",
     "commercial": ""
   },
-
   "mechanics": {
     "prepEsthetique": "NON",
     "ct": "NON",
     "vidangeSimple": "NON",
     "vidangeComplete": "NON",
     "courroie": "NON",
-
     "pneusAvant": "NON",
     "pneusArriere": "NON",
     "pneus": "0",
-
     "batterie": "NON",
     "autresMeca": "0"
   },
-
   "body": [],
   "cell": []
 }
 
 Règles :
-
 - prep esthétique = OUI si nettoyage / prépa / esthétique.
 - CT = OUI si contrôle technique.
 - vidange simple = OUI si vidange.
 - vidange complète = OUI si vidange complète.
 - courroie = OUI si courroie distribution.
+- batterie = OUI si batterie.
 
-PNEUS :
-- pneus avant = pneusAvant OUI
-- pneus arrière = pneusArriere OUI
-- 4 pneus = pneusAvant OUI + pneusArriere OUI
+Pneus :
+- pneus avant = pneusAvant OUI.
+- pneus arrière = pneusArriere OUI.
+- 4 pneus = pneusAvant OUI + pneusArriere OUI.
+- aucun = pneus 0.
+- avant seul = pneus 1.
+- arrière seul = pneus 1.
+- avant + arrière = pneus 2.
 
-Calcul pneus :
-- aucun = 0
-- avant seul = 1
-- arrière seul = 1
-- avant + arrière = 2
+Travaux :
+- body = carrosserie.
+- cell = cellule.
+- Format : { "desc": "description", "amount": "montant" }.
 
-body = carrosserie
-cell = cellule
-
-Toujours retourner du JSON valide.
+Motorisation :
+- Extraire la motorisation même approximative.
+- Ne pas inventer si rien n'est dicté.
+- Le serveur normalisera ensuite avec son catalogue.
 `,
-            },
+        },
+        {
+          role: 'user',
+          content: text,
+        },
+      ],
+    });
 
-            {
-              role: 'user',
-              content: text,
-            },
-          ],
-        });
+    const raw = completion.choices?.[0]?.message?.content || '{}';
 
-      const raw =
-        completion.choices?.[0]?.message?.content || '{}';
+    const clean = raw
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .trim();
 
-      const clean = raw
-        .replace(/```json/g, '')
-        .replace(/```/g, '')
-        .trim();
+    const data = JSON.parse(clean);
 
-      const data = JSON.parse(clean);
+    if (!data.vehicle) data.vehicle = {};
+    if (!data.mechanics) data.mechanics = {};
+    if (!Array.isArray(data.body)) data.body = [];
+    if (!Array.isArray(data.cell)) data.cell = [];
 
-      // -----------------------------
-      // NORMALISATION
-      // -----------------------------
-
-      if (!data.vehicle) {
-        data.vehicle = {};
-      }
-
-      if (!data.mechanics) {
-        data.mechanics = {};
-      }
-
-      if (!Array.isArray(data.body)) {
-        data.body = [];
-      }
-
-      if (!Array.isArray(data.cell)) {
-        data.cell = [];
-      }
-
-      // MOTORISATION
-
-      if (data.vehicle.motorisation) {
-        data.vehicle.motorisation =
-          normalizeMotorisation(
-            data.vehicle.motorisation
-          );
-      }
-
-      // MECANIQUE
-
-      data.mechanics =
-        normalizeMechanics(data.mechanics);
-
-      // BODY
-
-      data.body = normalizeLines(data.body);
-
-      // CELL
-
-      data.cell = normalizeLines(data.cell);
-
-      return res.json({
-        text,
-        data,
-      });
-    } catch (error) {
-      console.error(error);
-
-      return res.status(500).json({
-        error:
-          error.message ||
-          'Erreur transcription/analyse',
-      });
+    if (data.vehicle.motorisation) {
+      data.vehicle.motorisation = normalizeMotorisation(data.vehicle.motorisation);
     }
-  }
-);
 
-app.post(
-  '/api/generate-excel',
-  async (req, res) => {
-    try {
-      const payload = req.body || {};
+    data.mechanics = normalizeMechanics(data.mechanics);
+    data.body = normalizeLines(data.body);
+    data.cell = normalizeLines(data.cell);
 
-      const workbook = new ExcelJS.Workbook();
+    return res.json({
+      text,
+      data,
+    });
+  } catch (error) {
+    console.error(error);
 
-      await workbook.xlsx.readFile(
-        path.resolve(
-          __dirname,
-          '../assets/template_fiche_provision.xlsx'
-        )
-      );
-
-      const sheet = workbook.worksheets[0];
-
-      const v = payload.vehicle || {};
-
-      const m = normalizeMechanics(
-        payload.mechanics || {}
-      );
-
-      const body = Array.isArray(payload.body)
-        ? payload.body
-        : [];
-
-      const cell = Array.isArray(payload.cell)
-        ? payload.cell
-        : [];
-
-      // VEHICULE
-
-      set(sheet, 'B8', v.marque || '');
-      set(sheet, 'B9', v.modele || '');
-      set(sheet, 'B10', v.motorisation || '');
-
-      set(sheet, 'E8', v.mec || '');
-      set(sheet, 'E9', v.immat || '');
-
-      set(sheet, 'E10', number(v.prixAchat));
-      set(sheet, 'E11', number(v.cessionOdoo));
-
-      set(sheet, 'B12', v.commercial || '');
-
-      set(sheet, 'E12', today());
-
-      // MECANIQUE
-
-      set(sheet, 'D14', m.prepEsthetique);
-
-      set(sheet, 'D18', m.ct);
-      set(sheet, 'D19', m.vidangeSimple);
-      set(sheet, 'D20', m.vidangeComplete);
-      set(sheet, 'D21', m.courroie);
-
-      set(sheet, 'D22', 'NON');
-
-      set(sheet, 'D23', m.pneus);
-
-      set(sheet, 'D24', m.batterie);
-
-      set(sheet, 'D25', number(m.autresMeca));
-
-      // CARROSSERIE
-
-      body.slice(0, 6).forEach((line, i) => {
-        const row = 29 + i;
-
-        set(sheet, `A${row}`, line.desc || '');
-        set(sheet, `E${row}`, number(line.amount));
-      });
-
-      // CELLULE
-
-      cell.slice(0, 14).forEach((line, i) => {
-        const row = 38 + i;
-
-        set(sheet, `A${row}`, line.desc || '');
-        set(sheet, `E${row}`, number(line.amount));
-      });
-
-      // MAUVAISES SURPRISES
-
-      set(
-        sheet,
-        'E58',
-        getMauvaiseSurprise(v.mec)
-      );
-
-      const filename =
-        `Fiche_Provision_${cleanFileName(v.marque)}_${cleanFileName(v.modele)}_${cleanFileName(v.immat)}.xlsx`;
-
-      const buffer =
-        await workbook.xlsx.writeBuffer();
-
-      res.setHeader(
-        'Content-Type',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      );
-
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="${filename}"`
-      );
-
-      res.send(Buffer.from(buffer));
-    } catch (error) {
-      console.error(error);
-
-      res.status(500).json({
-        error:
-          error.message ||
-          'Erreur génération Excel',
-      });
+    if (req.file?.path) {
+      fs.unlink(req.file.path, () => {});
     }
-  }
-);
 
-// --------------------------------------------------
-// HELPERS
-// --------------------------------------------------
+    return res.status(500).json({
+      error: error.message || 'Erreur transcription/analyse',
+    });
+  }
+});
+
+app.post('/api/generate-excel', async (req, res) => {
+  try {
+    const payload = req.body || {};
+
+    const workbook = new ExcelJS.Workbook();
+
+    await workbook.xlsx.readFile(
+      path.resolve(__dirname, '../assets/template_fiche_provision.xlsx')
+    );
+
+    const sheet = workbook.worksheets[0];
+
+    const v = payload.vehicle || {};
+    const m = normalizeMechanics(payload.mechanics || {});
+    const body = Array.isArray(payload.body) ? payload.body : [];
+    const cell = Array.isArray(payload.cell) ? payload.cell : [];
+
+    set(sheet, 'B8', v.marque || '');
+    set(sheet, 'B9', v.modele || '');
+    set(sheet, 'B10', normalizeMotorisation(v.motorisation || ''));
+
+    set(sheet, 'E8', v.mec || '');
+    set(sheet, 'E9', v.immat || '');
+
+    set(sheet, 'E10', number(v.prixAchat));
+    set(sheet, 'E11', number(v.cessionOdoo));
+
+    set(sheet, 'B12', v.commercial || '');
+    set(sheet, 'E12', today());
+
+    set(sheet, 'D14', m.prepEsthetique);
+
+    set(sheet, 'D18', m.ct);
+    set(sheet, 'D19', m.vidangeSimple);
+    set(sheet, 'D20', m.vidangeComplete);
+    set(sheet, 'D21', m.courroie);
+
+    set(sheet, 'D22', 'NON');
+    set(sheet, 'D23', m.pneus);
+    set(sheet, 'D24', m.batterie);
+    set(sheet, 'D25', number(m.autresMeca));
+
+    for (let r = 29; r <= 34; r++) {
+      set(sheet, `A${r}`, '');
+      set(sheet, `E${r}`, '');
+    }
+
+    body.slice(0, 6).forEach((line, i) => {
+      const row = 29 + i;
+      set(sheet, `A${row}`, line.desc || '');
+      set(sheet, `E${row}`, number(line.amount));
+    });
+
+    for (let r = 38; r <= 51; r++) {
+      set(sheet, `A${r}`, '');
+      set(sheet, `E${r}`, '');
+    }
+
+    cell.slice(0, 14).forEach((line, i) => {
+      const row = 38 + i;
+      set(sheet, `A${row}`, line.desc || '');
+      set(sheet, `E${row}`, number(line.amount));
+    });
+
+    set(sheet, 'A54', 'Pack Fraicheur');
+    set(sheet, 'A55', "Test d'humidité");
+    set(sheet, 'E58', getMauvaiseSurprise(v.mec));
+
+    const filename =
+      `Fiche_Provision_${cleanFileName(v.marque)}_${cleanFileName(v.modele)}_${cleanFileName(v.immat)}.xlsx`;
+
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${filename}"`
+    );
+
+    res.send(Buffer.from(buffer));
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: error.message || 'Erreur génération Excel',
+    });
+  }
+});
 
 function normalizeMotorisation(value) {
+  const original = String(value || '').trim();
+
+  if (!original) return '';
+
+  const normalizedInput = normalizeMotorText(original);
+
+  let best = '';
+  let bestScore = 0;
+
+  for (const candidate of MOTORISATION_CATALOG) {
+    const score = scoreMotorisation(normalizedInput, normalizeMotorText(candidate));
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = candidate;
+    }
+  }
+
+  if (bestScore >= 3) return best;
+
+  return fallbackMotorisation(original);
+}
+
+function scoreMotorisation(input, candidate) {
+  let score = 0;
+
+  const inputTokens = input.split(' ').filter(Boolean);
+  const candidateTokens = candidate.split(' ').filter(Boolean);
+
+  for (const token of candidateTokens) {
+    if (inputTokens.includes(token)) {
+      score += 1;
+    }
+  }
+
+  const inputPower = input.match(/\b(105|110|120|125|130|135|140|143|145|150|155|160|163|165|170|177|180|185|190|204)\b/);
+  const candidatePower = candidate.match(/\b(105|110|120|125|130|135|140|143|145|150|155|160|163|165|170|177|180|185|190|204)\b/);
+
+  if (inputPower && candidatePower && inputPower[1] === candidatePower[1]) {
+    score += 3;
+  }
+
+  const inputCyl = input.match(/\b(2\.0|2\.1|2\.2|2\.3|3\.0)\b/);
+  const candidateCyl = candidate.match(/\b(2\.0|2\.1|2\.2|2\.3|3\.0)\b/);
+
+  if (inputCyl && candidateCyl && inputCyl[1] === candidateCyl[1]) {
+    score += 2;
+  }
+
+  return score;
+}
+
+function normalizeMotorText(value) {
+  let v = String(value || '').toLowerCase();
+
+  v = v
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  v = v
+    .replace(/citroen/g, 'citroen')
+    .replace(/ducato/g, 'fiat ducato')
+    .replace(/boxer/g, 'peugeot boxer')
+    .replace(/jumper/g, 'citroen jumper')
+    .replace(/transit/g, 'ford transit')
+    .replace(/sprinter/g, 'mercedes sprinter')
+    .replace(/master/g, 'renault master')
+    .replace(/daily/g, 'iveco daily')
+    .replace(/crafter/g, 'volkswagen crafter')
+    .replace(/transporter/g, 'volkswagen transporter')
+    .replace(/\btge\b/g, 'man tge');
+
+  v = v
+    .replace(/deux litres trois/g, '2.3')
+    .replace(/deux litre trois/g, '2.3')
+    .replace(/2 litres 3/g, '2.3')
+    .replace(/2 litre 3/g, '2.3')
+    .replace(/deux litres deux/g, '2.2')
+    .replace(/deux litre deux/g, '2.2')
+    .replace(/2 litres 2/g, '2.2')
+    .replace(/2 litre 2/g, '2.2')
+    .replace(/deux litres un/g, '2.1')
+    .replace(/deux litre un/g, '2.1')
+    .replace(/deux litres/g, '2.0')
+    .replace(/deux litre/g, '2.0')
+    .replace(/trois litres/g, '3.0')
+    .replace(/trois litre/g, '3.0');
+
+  v = v
+    .replace(/cent cinq/g, '105')
+    .replace(/cent dix/g, '110')
+    .replace(/cent vingt/g, '120')
+    .replace(/cent vingt cinq/g, '125')
+    .replace(/cent trente cinq/g, '135')
+    .replace(/cent trente/g, '130')
+    .replace(/cent quarante cinq/g, '145')
+    .replace(/cent quarante trois/g, '143')
+    .replace(/cent quarante/g, '140')
+    .replace(/cent cinquante cinq/g, '155')
+    .replace(/cent cinquante/g, '150')
+    .replace(/cent soixante cinq/g, '165')
+    .replace(/cent soixante trois/g, '163')
+    .replace(/cent soixante/g, '160')
+    .replace(/cent soixante dix sept/g, '177')
+    .replace(/cent soixante dix/g, '170')
+    .replace(/cent quatre vingt cinq/g, '185')
+    .replace(/cent quatre vingt dix/g, '190')
+    .replace(/cent quatre vingt/g, '180')
+    .replace(/deux cent quatre/g, '204');
+
+  v = v
+    .replace(/chevaux/g, 'ch')
+    .replace(/cheval/g, 'ch')
+    .replace(/\bch\b/g, '')
+    .replace(/blue hdi/g, 'bluehdi')
+    .replace(/bluehdi/g, 'bluehdi')
+    .replace(/tdci/g, 'tdci')
+    .replace(/cdi/g, 'cdi')
+    .replace(/dci/g, 'dci')
+    .replace(/ecoblue/g, 'ecoblue')
+    .replace(/eco blue/g, 'ecoblue');
+
+  return v
+    .replace(/[^\w.]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function fallbackMotorisation(value) {
   let v = String(value || '').toLowerCase();
 
   if (!v.trim()) return '';
@@ -439,12 +528,16 @@ function normalizeMotorisation(value) {
     .replace(/transit/g, 'Ford Transit')
     .replace(/sprinter/g, 'Mercedes Sprinter')
     .replace(/master/g, 'Renault Master')
-    .replace(/daily/g, 'Iveco Daily');
+    .replace(/daily/g, 'Iveco Daily')
+    .replace(/crafter/g, 'Volkswagen Crafter')
+    .replace(/transporter/g, 'Volkswagen Transporter')
+    .replace(/\btge\b/g, 'MAN TGE');
 
   v = v
     .replace(/deux litres trois/g, '2.3')
     .replace(/deux litres deux/g, '2.2')
-    .replace(/deux litres/g, '2.0');
+    .replace(/deux litres/g, '2.0')
+    .replace(/trois litres/g, '3.0');
 
   v = v
     .replace(/cent trente/g, '130')
@@ -455,12 +548,26 @@ function normalizeMotorisation(value) {
     .replace(/cent quatre vingt/g, '180');
 
   v = v
+    .replace(/\b105\b/g, '105 ch')
+    .replace(/\b110\b/g, '110 ch')
+    .replace(/\b120\b/g, '120 ch')
+    .replace(/\b125\b/g, '125 ch')
     .replace(/\b130\b/g, '130 ch')
+    .replace(/\b135\b/g, '135 ch')
     .replace(/\b140\b/g, '140 ch')
+    .replace(/\b143\b/g, '143 ch')
+    .replace(/\b145\b/g, '145 ch')
     .replace(/\b150\b/g, '150 ch')
+    .replace(/\b155\b/g, '155 ch')
     .replace(/\b160\b/g, '160 ch')
+    .replace(/\b163\b/g, '163 ch')
+    .replace(/\b165\b/g, '165 ch')
     .replace(/\b170\b/g, '170 ch')
-    .replace(/\b180\b/g, '180 ch');
+    .replace(/\b177\b/g, '177 ch')
+    .replace(/\b180\b/g, '180 ch')
+    .replace(/\b185\b/g, '185 ch')
+    .replace(/\b190\b/g, '190 ch')
+    .replace(/\b204\b/g, '204 ch');
 
   return v
     .replace(/ch ch/g, 'ch')
@@ -469,91 +576,47 @@ function normalizeMotorisation(value) {
 }
 
 function normalizeMechanics(m = {}) {
-  const pneusAvant =
-    m.pneusAvant === 'OUI'
-      ? 'OUI'
-      : 'NON';
-
-  const pneusArriere =
-    m.pneusArriere === 'OUI'
-      ? 'OUI'
-      : 'NON';
+  const pneusAvant = m.pneusAvant === 'OUI' ? 'OUI' : 'NON';
+  const pneusArriere = m.pneusArriere === 'OUI' ? 'OUI' : 'NON';
 
   return {
-    prepEsthetique:
-      m.prepEsthetique === 'OUI'
-        ? 'OUI'
-        : 'NON',
-
-    ct:
-      m.ct === 'OUI'
-        ? 'OUI'
-        : 'NON',
-
-    vidangeSimple:
-      m.vidangeSimple === 'OUI'
-        ? 'OUI'
-        : 'NON',
-
-    vidangeComplete:
-      m.vidangeComplete === 'OUI'
-        ? 'OUI'
-        : 'NON',
-
-    courroie:
-      m.courroie === 'OUI'
-        ? 'OUI'
-        : 'NON',
+    prepEsthetique: m.prepEsthetique === 'OUI' ? 'OUI' : 'NON',
+    ct: m.ct === 'OUI' ? 'OUI' : 'NON',
+    vidangeSimple: m.vidangeSimple === 'OUI' ? 'OUI' : 'NON',
+    vidangeComplete: m.vidangeComplete === 'OUI' ? 'OUI' : 'NON',
+    courroie: m.courroie === 'OUI' ? 'OUI' : 'NON',
 
     pneusAvant,
     pneusArriere,
 
     pneus:
-      pneusAvant === 'OUI' &&
-      pneusArriere === 'OUI'
+      pneusAvant === 'OUI' && pneusArriere === 'OUI'
         ? '2'
-        : pneusAvant === 'OUI' ||
-          pneusArriere === 'OUI'
-        ? '1'
-        : '0',
+        : pneusAvant === 'OUI' || pneusArriere === 'OUI'
+          ? '1'
+          : '0',
 
-    batterie:
-      m.batterie === 'OUI'
-        ? 'OUI'
-        : 'NON',
-
-    autresMeca:
-      m.autresMeca || '0',
+    batterie: m.batterie === 'OUI' ? 'OUI' : 'NON',
+    autresMeca: m.autresMeca || '0',
   };
 }
 
 function normalizeLines(lines = []) {
   if (!Array.isArray(lines)) return [];
 
-  return lines.map(line => ({
-    id: makeId(),
-
-    desc: capitalizeFirst(
-      line.desc ||
-        line.description ||
-        ''
-    ),
-
-    amount: String(
-      line.amount ||
-        line.montant ||
-        ''
-    ).replace(/\D/g, ''),
-  }));
+  return lines
+    .map(line => ({
+      id: line.id || makeId(),
+      desc: capitalizeFirst(line.desc || line.description || ''),
+      amount: String(line.amount || line.montant || '').replace(/\D/g, ''),
+    }))
+    .filter(line => line.desc || line.amount);
 }
 
 function getMauvaiseSurprise(mec) {
   if (!mec) return 750;
 
-  const match =
-    String(mec).match(
-      /^(\d{2})\/(\d{2})\/(\d{4})$/
-    );
+  const match = String(mec).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
 
   if (!match) return 750;
 
@@ -568,7 +631,6 @@ function getMauvaiseSurprise(mec) {
     (1000 * 60 * 60 * 24 * 365.25);
 
   if (years <= 4) return 250;
-
   if (years <= 8) return 500;
 
   return 750;
@@ -585,9 +647,7 @@ function number(value) {
       .replace(',', '.')
   );
 
-  return Number.isFinite(n)
-    ? n
-    : 0;
+  return Number.isFinite(n) ? n : 0;
 }
 
 function today() {
@@ -611,20 +671,13 @@ function capitalizeFirst(str = '') {
 
   if (!value) return '';
 
-  return (
-    value.charAt(0).toUpperCase() +
-    value.slice(1)
-  );
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function makeId() {
-  return `${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}`;
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 app.listen(port, () => {
-  console.log(
-    `API running on ${port}`
-  );
+  console.log(`API running on ${port}`);
 });
