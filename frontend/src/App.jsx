@@ -41,7 +41,7 @@ const initialState = {
     vidangeSimple: 'NON',
     vidangeComplete: 'NON',
     courroie: 'NON',
-    pneus: 'NON',
+    pneus: '0',
     batterie: 'NON',
     autresMeca: '0',
   },
@@ -57,6 +57,37 @@ function capitalizeFirst(str) {
   const value = String(str || '').trim();
   if (!value) return '';
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function normalizePneus(value) {
+  const raw = String(value ?? '').toLowerCase().trim();
+
+  if (!raw || raw === 'non' || raw === '0') return '0';
+
+  if (
+    raw === '2' ||
+    raw.includes('2') ||
+    raw.includes('deux') ||
+    raw.includes('4') ||
+    raw.includes('quatre')
+  ) {
+    return '2';
+  }
+
+  if (
+    raw === '1' ||
+    raw.includes('1') ||
+    raw.includes('un') ||
+    raw.includes('oui') ||
+    raw.includes('avant') ||
+    raw.includes('arrière') ||
+    raw.includes('arriere') ||
+    raw.includes('pneu')
+  ) {
+    return '1';
+  }
+
+  return '0';
 }
 
 function extractLines(text) {
@@ -228,7 +259,12 @@ function App() {
 
             mechanics: {
               ...prev.mechanics,
-              ...(block === 'mechanics' ? result.mechanics || {} : {}),
+              ...(block === 'mechanics'
+                ? {
+                    ...(result.mechanics || {}),
+                    pneus: normalizePneus(result.mechanics?.pneus),
+                  }
+                : {}),
             },
 
             body:
@@ -453,20 +489,56 @@ function App() {
                     <div key={key} className="meca-row">
                       <span className="meca-label">{label}</span>
 
-                      <span
-                        className={data.mechanics[key] === 'OUI' ? 'badge-oui' : 'badge-non'}
-                        onClick={() =>
-                          setData(prev => ({
-                            ...prev,
-                            mechanics: {
-                              ...prev.mechanics,
-                              [key]: prev.mechanics[key] === 'OUI' ? 'NON' : 'OUI',
-                            },
-                          }))
-                        }
-                      >
-                        {data.mechanics[key] === 'OUI' ? 'OUI' : 'NON'}
-                      </span>
+                      {key === 'pneus' ? (
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          {[
+                            { value: '0', label: 'NON' },
+                            { value: '1', label: '1 TRAIN' },
+                            { value: '2', label: '2 TRAINS' },
+                          ].map(option => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              className={
+                                normalizePneus(data.mechanics.pneus) === option.value
+                                  ? 'badge-oui'
+                                  : 'badge-non'
+                              }
+                              onClick={() =>
+                                setData(prev => ({
+                                  ...prev,
+                                  mechanics: {
+                                    ...prev.mechanics,
+                                    pneus: option.value,
+                                  },
+                                }))
+                              }
+                              style={{
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '6px 10px',
+                              }}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <span
+                          className={data.mechanics[key] === 'OUI' ? 'badge-oui' : 'badge-non'}
+                          onClick={() =>
+                            setData(prev => ({
+                              ...prev,
+                              mechanics: {
+                                ...prev.mechanics,
+                                [key]: prev.mechanics[key] === 'OUI' ? 'NON' : 'OUI',
+                              },
+                            }))
+                          }
+                        >
+                          {data.mechanics[key] === 'OUI' ? 'OUI' : 'NON'}
+                        </span>
+                      )}
                     </div>
                   ))}
 
@@ -709,7 +781,10 @@ function LinesBlock({ block, text, prefix, recording, phase, onRecord, lines, se
 function RecapCard({ data, vehicleLabels, mechanicsLabels }) {
   const v = data.vehicle;
   const m = data.mechanics;
-  const oui = Object.entries(mechanicsLabels).filter(([key]) => m[key] === 'OUI');
+  const oui = Object.entries(mechanicsLabels).filter(([key]) => {
+    if (key === 'pneus') return normalizePneus(m.pneus) !== '0';
+    return m[key] === 'OUI';
+  });
 
   const bodyLines = normalizeLines(data.body);
   const cellLines = normalizeLines(data.cell);
@@ -740,11 +815,22 @@ function RecapCard({ data, vehicleLabels, mechanicsLabels }) {
               Aucun travail mécanique
             </span>
           ) : (
-            oui.map(([key, label]) => (
-              <span key={key} className="badge-oui">
-                {label}
-              </span>
-            ))
+            oui.map(([key, label]) => {
+              if (key === 'pneus') {
+                const pneus = normalizePneus(m.pneus);
+                return (
+                  <span key={key} className="badge-oui">
+                    Pneus : {pneus === '1' ? '1 train' : '2 trains'}
+                  </span>
+                );
+              }
+
+              return (
+                <span key={key} className="badge-oui">
+                  {label}
+                </span>
+              );
+            })
           )}
 
           {m.autresMeca && m.autresMeca !== '0' && (
