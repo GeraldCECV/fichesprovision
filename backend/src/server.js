@@ -616,16 +616,32 @@ function normalizeLines(lines = []) {
 function getMauvaiseSurprise(mec) {
   if (!mec) return 750;
 
-  const value = String(mec).trim();
+  const value = String(mec)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const mois = {
+    janvier: 0,
+    fevrier: 1,
+    mars: 2,
+    avril: 3,
+    mai: 4,
+    juin: 5,
+    juillet: 6,
+    aout: 7,
+    septembre: 8,
+    octobre: 9,
+    novembre: 10,
+    decembre: 11,
+  };
 
   let day = 1;
   let month = 0;
   let year = null;
 
-  let match = value.match(
-    /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
-  );
-
+  let match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (match) {
     day = Number(match[1]);
     month = Number(match[2]) - 1;
@@ -633,10 +649,7 @@ function getMauvaiseSurprise(mec) {
   }
 
   if (!year) {
-    match = value.match(
-      /^(\d{1,2})\/(\d{4})$/
-    );
-
+    match = value.match(/^(\d{1,2})\/(\d{4})$/);
     if (match) {
       month = Number(match[1]) - 1;
       year = Number(match[2]);
@@ -645,17 +658,13 @@ function getMauvaiseSurprise(mec) {
 
   if (!year) {
     match = value.match(/^(\d{4})$/);
-
     if (match) {
       year = Number(match[1]);
     }
   }
 
   if (!year) {
-    match = value.match(
-      /^(\d{4})-(\d{1,2})-(\d{1,2})$/
-    );
-
+    match = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
     if (match) {
       year = Number(match[1]);
       month = Number(match[2]) - 1;
@@ -663,14 +672,28 @@ function getMauvaiseSurprise(mec) {
     }
   }
 
+  // Format texte : "20 avril 2023"
+  if (!year) {
+    match = value.match(/^(\d{1,2})\s+([a-z]+)\s+(\d{4})$/);
+    if (match && mois[match[2]] !== undefined) {
+      day = Number(match[1]);
+      month = mois[match[2]];
+      year = Number(match[3]);
+    }
+  }
+
+  // Format texte : "avril 2023"
+  if (!year) {
+    match = value.match(/^([a-z]+)\s+(\d{4})$/);
+    if (match && mois[match[1]] !== undefined) {
+      month = mois[match[1]];
+      year = Number(match[2]);
+    }
+  }
+
   if (!year) return 750;
 
-  const mecDate = new Date(
-    year,
-    month,
-    day
-  );
-
+  const mecDate = new Date(year, month, day);
   const todayDate = new Date();
 
   const ageYears =
@@ -678,7 +701,6 @@ function getMauvaiseSurprise(mec) {
     (1000 * 60 * 60 * 24 * 365.25);
 
   if (ageYears <= 4) return 250;
-
   if (ageYears <= 8) return 500;
 
   return 750;
