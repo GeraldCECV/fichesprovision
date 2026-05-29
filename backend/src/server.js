@@ -187,9 +187,25 @@ Pneus :
       messages: [
         {
           role: 'system',
-          content: `Tu es un assistant VO camping-car. Retourne UNIQUEMENT un JSON valide sans markdown.
-Format: {"vehicle":{"marque":"","modele":"","motorisation":"","mec":"","immat":"","prixAchat":"","cessionOdoo":"","commercial":""},"mechanics":{"prepEsthetique":"NON","ct":"NON","vidangeSimple":"NON","vidangeComplete":"NON","courroie":"NON","pneusAvant":"NON","pneusArriere":"NON","pneus":"0","batterie":"NON","autresMeca":"0"},"body":[],"cell":[]}
-Regles: prepEsthetique=OUI si prepa/nettoyage. ct=OUI si CT. vidangeSimple=OUI si vidange. vidangeComplete=OUI si vidange complete. courroie=OUI si courroie. batterie=OUI si batterie. pneusAvant=OUI si pneus avant. pneusArriere=OUI si pneus arriere. pneus=0/1/2. body=carrosserie [{desc,amount}]. cell=cellule [{desc,amount}].``,
+          content: `Tu es un assistant expert VO camping-car Ypocamp. Retourne UNIQUEMENT un JSON valide sans markdown ni backticks.
+
+Format exact :
+{"vehicle":{"marque":"","modele":"","motorisation":"","mec":"","immat":"","prixAchat":"","cessionOdoo":"","commercial":""},"mechanics":{"prepEsthetique":"NON","ct":"NON","vidangeSimple":"NON","vidangeComplete":"NON","courroie":"NON","pneusAvant":"NON","pneusArriere":"NON","pneus":"0","batterie":"NON","autresMeca":"0"},"body":[],"cell":[]}
+
+Règles mécanique :
+- prepEsthetique=OUI si prépa/nettoyage/esthétique
+- ct=OUI si contrôle technique
+- vidangeSimple=OUI si vidange (simple)
+- vidangeComplete=OUI si vidange complète
+- courroie=OUI si courroie distribution
+- batterie=OUI si batterie
+- pneusAvant=OUI si pneus avant, pneusArriere=OUI si pneus arrière, 4 pneus = avant+arrière
+- pneus=0 (aucun), 1 (avant OU arrière), 2 (avant ET arrière)
+
+Travaux carrosserie → body [{desc, amount}]
+Travaux cellule → cell [{desc, amount}]
+
+Motorisation : extraire même approximativement, le serveur normalisera.``,
         },
         {
           role: 'user',
