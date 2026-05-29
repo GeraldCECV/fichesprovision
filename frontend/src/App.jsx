@@ -359,6 +359,15 @@ function App() {
     }
   }
 
+
+  function resetForm() {
+    setActive('vehicle');
+    setData(initialState);
+    setTexts({ vehicle: '', mechanics: '', body: '', cell: '' });
+    setStatus('');
+    setPhase('idle');
+  }
+
   const commercial = data.vehicle.commercial || '';
   const initiale = commercial ? commercial.trim()[0].toUpperCase() : '';
   const vehicleName = [data.vehicle.marque, data.vehicle.modele].filter(Boolean).join(' ');
@@ -374,12 +383,17 @@ function App() {
           <span className="topbar-sub">Nouvelle fiche</span>
         </div>
 
-        {commercial && (
-          <div className="topbar-user">
-            <div className="user-avatar">{initiale}</div>
-            <span className="user-name">{commercial}</span>
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {commercial && (
+            <div className="topbar-user">
+              <div className="user-avatar">{initiale}</div>
+              <span className="user-name">{commercial}</span>
+            </div>
+          )}
+          <button className="btn-new-fiche" onClick={resetForm}>
+            + Nouvelle fiche
+          </button>
+        </div>
       </header>
 
       <div className="progress-bar">
