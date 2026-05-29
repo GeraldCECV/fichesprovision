@@ -266,18 +266,14 @@ function App() {
               mechanics: newMechanics,
 
               body:
-                block === 'body'
-                  ? parsedLines
-                  : normalizeLines(result.body).length
-                    ? normalizeLines(result.body)
-                    : prev.body,
+  block === 'body'
+    ? parsedLines
+    : prev.body,
 
-              cell:
-                block === 'cell'
-                  ? parsedLines
-                  : normalizeLines(result.cell).length
-                    ? normalizeLines(result.cell)
-                    : prev.cell,
+cell:
+  block === 'cell'
+    ? parsedLines
+    : prev.cell,
             };
           });
 
