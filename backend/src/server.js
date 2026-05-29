@@ -126,25 +126,7 @@ app.post('/api/transcribe-and-analyze', upload.single('audio'), async (req, res)
       file: audioFile,
       model: 'whisper-1',
       language: 'fr',
-      prompt: `
-Contexte : concession camping-car Ypocamp.
-
-Dictée métier VO camping-car.
-
-Préserver :
-- marques
-- modèles
-- motorisations
-- immatriculations
-- MEC
-- prix achat
-- cession Odoo
-- travaux mécanique
-- travaux carrosserie
-- travaux cellule
-
-Catalogue motorisations fréquent :
-${MOTORISATION_CATALOG.map(item => `- ${item}`).join('\n')}
+      prompt: `Dictée VO camping-car Ypocamp. Préserver noms propres, marques camping-cars (Rapido, Hymer, Pilote, Adria, Bürstner, Laika, Chausson, Dethleffs, Fleurette, Autostar...), porteurs (Ducato, Boxer, Jumper, Transit, Sprinter, Master, Daily), immatriculations format français, dates MEC, prix en euros, travaux avec montants.`,
 
 Variantes orales :
 - "deux litres trois" = 2.3
@@ -184,6 +166,7 @@ Pneus :
       model: 'gpt-4o-mini',
       temperature: 0.1,
       max_tokens: 600,
+      response_format: { type: 'json_object' },
       messages: [
         {
           role: 'system',
