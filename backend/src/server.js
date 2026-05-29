@@ -124,7 +124,7 @@ app.post('/api/transcribe-and-analyze', upload.single('audio'), async (req, res)
 
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,
-      model: 'gpt-4o-mini-transcribe',
+      model: 'whisper-1',
       language: 'fr',
       prompt: `
 Contexte : concession camping-car Ypocamp.
@@ -183,70 +183,13 @@ Pneus :
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       temperature: 0.1,
+      max_tokens: 600,
       messages: [
         {
           role: 'system',
-          content: `
-Tu es un assistant expert VO camping-car Ypocamp.
-
-Tu dois analyser la dictée et retourner uniquement un JSON valide.
-
-Format attendu :
-
-{
-  "vehicle": {
-    "marque": "",
-    "modele": "",
-    "motorisation": "",
-    "mec": "",
-    "immat": "",
-    "prixAchat": "",
-    "cessionOdoo": "",
-    "commercial": ""
-  },
-  "mechanics": {
-    "prepEsthetique": "NON",
-    "ct": "NON",
-    "vidangeSimple": "NON",
-    "vidangeComplete": "NON",
-    "courroie": "NON",
-    "pneusAvant": "NON",
-    "pneusArriere": "NON",
-    "pneus": "0",
-    "batterie": "NON",
-    "autresMeca": "0"
-  },
-  "body": [],
-  "cell": []
-}
-
-Règles :
-- prep esthétique = OUI si nettoyage / prépa / esthétique.
-- CT = OUI si contrôle technique.
-- vidange simple = OUI si vidange.
-- vidange complète = OUI si vidange complète.
-- courroie = OUI si courroie distribution.
-- batterie = OUI si batterie.
-
-Pneus :
-- pneus avant = pneusAvant OUI.
-- pneus arrière = pneusArriere OUI.
-- 4 pneus = pneusAvant OUI + pneusArriere OUI.
-- aucun = pneus 0.
-- avant seul = pneus 1.
-- arrière seul = pneus 1.
-- avant + arrière = pneus 2.
-
-Travaux :
-- body = carrosserie.
-- cell = cellule.
-- Format : { "desc": "description", "amount": "montant" }.
-
-Motorisation :
-- Extraire la motorisation même approximative.
-- Ne pas inventer si rien n'est dicté.
-- Le serveur normalisera ensuite avec son catalogue.
-`,
+          content: `Tu es un assistant VO camping-car. Retourne UNIQUEMENT un JSON valide sans markdown.
+Format: {"vehicle":{"marque":"","modele":"","motorisation":"","mec":"","immat":"","prixAchat":"","cessionOdoo":"","commercial":""},"mechanics":{"prepEsthetique":"NON","ct":"NON","vidangeSimple":"NON","vidangeComplete":"NON","courroie":"NON","pneusAvant":"NON","pneusArriere":"NON","pneus":"0","batterie":"NON","autresMeca":"0"},"body":[],"cell":[]}
+Regles: prepEsthetique=OUI si prepa/nettoyage. ct=OUI si CT. vidangeSimple=OUI si vidange. vidangeComplete=OUI si vidange complete. courroie=OUI si courroie. batterie=OUI si batterie. pneusAvant=OUI si pneus avant. pneusArriere=OUI si pneus arriere. pneus=0/1/2. body=carrosserie [{desc,amount}]. cell=cellule [{desc,amount}].``,
         },
         {
           role: 'user',
