@@ -16,7 +16,7 @@ const vehicleLabels = {
   marque: 'Marque',
   modele: 'Modèle',
   motorisation: 'Motorisation',
-  mec: 'MEC / 1ère mise en circulation',
+  mec: '1ère MEC',
   immat: 'Immatriculation',
   prixAchat: "Prix d'achat €",
   cessionOdoo: 'Cession Odoo €',
@@ -239,7 +239,9 @@ function App() {
 
           const transcript = json.text || '';
           const result = json.data || {};
-          const parsedLines = normalizeLines(extractLines(transcript));
+          const parsedLines = (block === 'body' || block === 'cell')
+            ? normalizeLines(extractLines(transcript))
+            : [];
 
           setTexts(prev => ({
             ...prev,
@@ -265,15 +267,8 @@ function App() {
 
               mechanics: newMechanics,
 
-              body:
-  block === 'body'
-    ? parsedLines
-    : prev.body,
-
-cell:
-  block === 'cell'
-    ? parsedLines
-    : prev.cell,
+              body: block === 'body' ? parsedLines : prev.body,
+              cell: block === 'cell' ? parsedLines : prev.cell,
             };
           });
 
