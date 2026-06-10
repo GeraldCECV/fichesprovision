@@ -299,8 +299,6 @@ function App() {
     }
   }
 
-  }
-
   // Point 7 : lancer l'analyse GPT sur le texte (potentiellement corrigé)
   async function analyzeText(block, text) {
     setPhase('processing');
