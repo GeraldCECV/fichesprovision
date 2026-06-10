@@ -167,6 +167,10 @@ function App() {
   const [status, setStatus] = useState('');
   const [phase, setPhase] = useState('idle');
 
+  // Point 7 : transcription en attente de validation avant analyse GPT
+  const [pendingTranscript, setPendingTranscript] = useState('');
+  const [reviewBlock, setReviewBlock] = useState(null);
+
   const recorderRef = useRef(null);
   const recognitionRef = useRef(null);
   const chunksRef = useRef([]);
@@ -238,42 +242,14 @@ function App() {
           }
 
           const transcript = json.text || '';
-          const result = json.data || {};
-          const parsedLines = (block === 'body' || block === 'cell')
-            ? normalizeLines(extractLines(transcript))
-            : [];
 
-          setTexts(prev => ({
-            ...prev,
-            [block]: transcript,
-          }));
-
-          setData(prev => {
-            const newMechanics =
-              block === 'mechanics'
-                ? normalizeMechanics({
-                    ...prev.mechanics,
-                    ...(result.mechanics || {}),
-                  })
-                : prev.mechanics;
-
-            return {
-              ...prev,
-
-              vehicle: {
-                ...prev.vehicle,
-                ...(block === 'vehicle' ? result.vehicle || {} : {}),
-              },
-
-              mechanics: newMechanics,
-
-              body: block === 'body' ? parsedLines : prev.body,
-              cell: block === 'cell' ? parsedLines : prev.cell,
-            };
-          });
-
+          // Point 7 : on stocke la transcription et on passe en mode review
+          // L'utilisateur peut corriger avant de lancer GPT
+          setTexts(prev => ({ ...prev, [block]: transcript }));
+          setPendingTranscript(transcript);
+          setReviewBlock(block);
           setStatus('');
-          setPhase('idle');
+          setPhase('review');
         } catch (e) {
           setStatus('Erreur : ' + e.message);
           setPhase('idle');
@@ -323,6 +299,61 @@ function App() {
     }
   }
 
+  }
+
+  // Point 7 : lancer l'analyse GPT sur le texte (potentiellement corrigé)
+  async function analyzeText(block, text) {
+    setPhase('processing');
+    setStatus(STATUS.PROCESSING);
+    setPendingTranscript('');
+    setReviewBlock(null);
+
+    try {
+      const response = await fetch(`${API_URL}/api/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, block }),
+      });
+
+      const json = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.error || 'Erreur analyse');
+      }
+
+      const result = json.data || {};
+      const parsedLines = (block === 'body' || block === 'cell')
+        ? normalizeLines(extractLines(text))
+        : [];
+
+      setTexts(prev => ({ ...prev, [block]: text }));
+
+      setData(prev => {
+        const newMechanics =
+          block === 'mechanics'
+            ? normalizeMechanics({ ...prev.mechanics, ...(result.mechanics || {}) })
+            : prev.mechanics;
+
+        return {
+          ...prev,
+          vehicle: {
+            ...prev.vehicle,
+            ...(block === 'vehicle' ? result.vehicle || {} : {}),
+          },
+          mechanics: newMechanics,
+          body: block === 'body' ? parsedLines : prev.body,
+          cell: block === 'cell' ? parsedLines : prev.cell,
+        };
+      });
+
+      setStatus('');
+      setPhase('idle');
+    } catch (e) {
+      setStatus('Erreur : ' + e.message);
+      setPhase('idle');
+    }
+  }
+
   async function generateExcel() {
     setStatus('Génération du fichier…');
 
@@ -366,6 +397,8 @@ function App() {
     setTexts({ vehicle: '', mechanics: '', body: '', cell: '' });
     setStatus('');
     setPhase('idle');
+    setPendingTranscript('');
+    setReviewBlock(null);
   }
 
   const commercial = data.vehicle.commercial || '';
@@ -445,6 +478,8 @@ function App() {
                 recording={recording}
                 phase={phase}
                 onRecord={toggleRecord}
+                pendingTranscript={reviewBlock === 'vehicle' ? pendingTranscript : ''}
+                onAnalyze={analyzeText}
               />
 
               <div className="card">
@@ -485,6 +520,8 @@ function App() {
                 recording={recording}
                 phase={phase}
                 onRecord={toggleRecord}
+                pendingTranscript={reviewBlock === 'mechanics' ? pendingTranscript : ''}
+                onAnalyze={analyzeText}
               />
 
               <div className="card">
@@ -622,6 +659,8 @@ function App() {
                 onRecord={toggleRecord}
                 lines={data.body}
                 setData={setData}
+                pendingTranscript={reviewBlock === 'body' ? pendingTranscript : ''}
+                onAnalyze={analyzeText}
               />
             </>
           )}
@@ -640,6 +679,8 @@ function App() {
                 onRecord={toggleRecord}
                 lines={data.cell}
                 setData={setData}
+                pendingTranscript={reviewBlock === 'cell' ? pendingTranscript : ''}
+                onAnalyze={analyzeText}
               />
             </>
           )}
@@ -696,34 +737,86 @@ function App() {
   );
 }
 
-function DicteeBlock({ block, text, recording, phase, onRecord }) {
+function DicteeBlock({ block, text, recording, phase, onRecord, pendingTranscript, onAnalyze }) {
   const isRecording = recording === block;
   const isProcessing = phase === 'processing' && !isRecording;
+  const isReview = phase === 'review' && pendingTranscript;
+
+  // Point 7 : état local pour l'édition de la transcription
+  const [editedTranscript, setEditedTranscript] = React.useState('');
+
+  React.useEffect(() => {
+    if (isReview) setEditedTranscript(pendingTranscript);
+  }, [isReview, pendingTranscript]);
 
   return (
     <div className="card">
       <div className="dictee-inner">
         <span className="dictee-title">Dictée vocale</span>
 
-        {!isRecording && !isProcessing && (
+        {!isRecording && !isProcessing && !isReview && (
           <span className="dictee-badge">Transcription + analyse auto</span>
         )}
 
+        {/* Point 6 : badge + animation ondes pendant l'enregistrement */}
         {isRecording && (
-          <span className="dictee-badge recording-badge">Dictée live…</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span className="dictee-badge recording-badge">Enregistrement…</span>
+            <div className="dictee-waves">
+              {[1,2,3,4,5].map(i => (
+                <div key={i} className="dictee-wave-bar" style={{ animationDelay: `${i * 0.1}s` }} />
+              ))}
+            </div>
+          </div>
         )}
 
         {isProcessing && (
-          <span className="dictee-badge-analyzing">Transcription + analyse…</span>
+          <span className="dictee-badge-analyzing">Transcription Whisper…</span>
+        )}
+
+        {isReview && (
+          <span className="dictee-badge" style={{ color: '#d97706', background: '#fffbeb', borderColor: '#fde68a' }}>
+            ✏️ Vérifiez avant analyse
+          </span>
         )}
       </div>
 
-      {text && <p className="transcript">{text}</p>}
+      {/* Transcription live pendant enregistrement */}
+      {text && !isReview && <p className="transcript">{text}</p>}
+
+      {/* Point 7 : zone d'édition de la transcription avant analyse GPT */}
+      {isReview && (
+        <div className="review-block">
+          <p className="review-label">
+            Whisper a transcrit le texte suivant. Corrigez si besoin, puis lancez l'analyse :
+          </p>
+          <textarea
+            className="review-textarea"
+            value={editedTranscript}
+            onChange={e => setEditedTranscript(e.target.value)}
+            rows={4}
+          />
+          <div className="review-actions">
+            <button
+              className="btn-analyze"
+              onClick={() => onAnalyze(block, editedTranscript)}
+            >
+              ✅ Analyser et remplir les champs
+            </button>
+            <button
+              className="btn-review-cancel"
+              onClick={() => onAnalyze(block, editedTranscript)}
+              style={{ display: 'none' }}
+            />
+          </div>
+        </div>
+      )}
 
       <button
         className={`btn-mic${isRecording ? ' recording' : ''}`}
         onClick={() => onRecord(block)}
         disabled={phase !== 'idle' && phase !== 'recording'}
+        style={{ marginTop: isReview ? '10px' : '0' }}
       >
         {isRecording ? '⏹ Arrêter' : '🎙 Activer la dictée'}
       </button>
@@ -731,7 +824,7 @@ function DicteeBlock({ block, text, recording, phase, onRecord }) {
   );
 }
 
-function LinesBlock({ block, text, prefix, recording, phase, onRecord, lines, setData }) {
+function LinesBlock({ block, text, prefix, recording, phase, onRecord, lines, setData, pendingTranscript, onAnalyze }) {
   function add() {
     setData(prev => ({
       ...prev,
@@ -775,6 +868,8 @@ function LinesBlock({ block, text, prefix, recording, phase, onRecord, lines, se
         recording={recording}
         phase={phase}
         onRecord={onRecord}
+        pendingTranscript={pendingTranscript}
+        onAnalyze={onAnalyze}
       />
 
       <div className="card">
