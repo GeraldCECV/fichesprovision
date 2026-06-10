@@ -236,6 +236,61 @@ Motorisation : extraire même approximativement, le serveur normalisera.``,
   }
 });
 
+// ─── Route analyse seule (texte → GPT) ────────────────────────────────────────
+// Utilisée quand l'utilisateur a corrigé la transcription avant analyse (point 7)
+app.post('/api/analyze', async (req, res) => {
+  try {
+    if (!openai) {
+      return res.status(400).json({ error: 'OPENAI_API_KEY manquante' });
+    }
+
+    const { text, block } = req.body || {};
+
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ error: 'Paramètre text manquant' });
+    }
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.1,
+      max_tokens: 600,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: `Tu es un assistant expert VO camping-car Ypocamp. Retourne UNIQUEMENT un JSON valide sans markdown ni backticks.\n\nFormat exact :\n{\"vehicle\":{\"marque\":\"\",\"modele\":\"\",\"motorisation\":\"\",\"mec\":\"\",\"immat\":\"\",\"prixAchat\":\"\",\"cessionOdoo\":\"\",\"commercial\":\"\"},\"mechanics\":{\"prepEsthetique\":\"NON\",\"ct\":\"NON\",\"vidangeSimple\":\"NON\",\"vidangeComplete\":\"NON\",\"courroie\":\"NON\",\"pneusAvant\":\"NON\",\"pneusArriere\":\"NON\",\"pneus\":\"0\",\"batterie\":\"NON\",\"autresMeca\":\"0\"},\"body\":[],\"cell\":[]}\n\nRègles mécanique :\n- prepEsthetique=OUI si prépa/nettoyage/esthétique\n- ct=OUI si contrôle technique\n- vidangeSimple=OUI si vidange (simple)\n- vidangeComplete=OUI si vidange complète\n- courroie=OUI si courroie distribution\n- batterie=OUI si batterie\n- pneusAvant=OUI si pneus avant, pneusArriere=OUI si pneus arrière, 4 pneus = avant+arrière\n- pneus=0 (aucun), 1 (avant OU arrière), 2 (avant ET arrière)\n\nTravaux carrosserie → body [{desc, amount}]\nTravaux cellule → cell [{desc, amount}]\n\nMotorisation : extraire même approximativement, le serveur normalisera.`,
+        },
+        {
+          role: 'user',
+          content: text,
+        },
+      ],
+    });
+
+    const raw = completion.choices?.[0]?.message?.content || '{}';
+    const clean = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+    const data = JSON.parse(clean);
+
+    if (!data.vehicle) data.vehicle = {};
+    if (!data.mechanics) data.mechanics = {};
+    if (!Array.isArray(data.body)) data.body = [];
+    if (!Array.isArray(data.cell)) data.cell = [];
+
+    if (data.vehicle.motorisation) {
+      data.vehicle.motorisation = normalizeMotorisation(data.vehicle.motorisation);
+    }
+
+    data.mechanics = normalizeMechanics(data.mechanics);
+    data.body = normalizeLines(data.body);
+    data.cell = normalizeLines(data.cell);
+
+    return res.json({ data });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message || 'Erreur analyse' });
+  }
+});
+
 app.post('/api/generate-excel', async (req, res) => {
   try {
     const payload = req.body || {};
