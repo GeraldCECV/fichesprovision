@@ -211,6 +211,14 @@ Motorisation : retranscrire EXACTEMENT ce qui est dit, sans corriger ni interpr�
     if (!Array.isArray(data.body)) data.body = [];
     if (!Array.isArray(data.cell)) data.cell = [];
 
+    // Override cylindrée : extraire depuis le texte Whisper brut,
+    // plus fiable que GPT qui normalise de lui-même
+    const motorExtract = extractMotorisationFromText(text);
+    if (motorExtract && motorExtract.cyl && data.vehicle.motorisation) {
+      data.vehicle.motorisation = data.vehicle.motorisation
+        .replace(/\b(2\.[0-3]|3\.0)\b/, motorExtract.cyl);
+    }
+
     if (data.vehicle.motorisation) {
       data.vehicle.motorisation = normalizeMotorisation(data.vehicle.motorisation);
     }
@@ -222,10 +230,7 @@ Motorisation : retranscrire EXACTEMENT ce qui est dit, sans corriger ni interpr�
     data.body = normalizeLines(data.body);
     data.cell = normalizeLines(data.cell);
 
-    return res.json({
-      text,
-      data,
-    });
+    return res.json({ text, data });
   } catch (error) {
     console.error(error);
 
@@ -392,10 +397,37 @@ app.post('/api/generate-excel', async (req, res) => {
 
 // Formate l'immatriculation au format français SIV : AA-123-BB
 function formatImmat(value) {
+  // Supprimer espaces ET tirets pour normaliser
   const raw = String(value || '').toUpperCase().replace(/[\s\-]/g, '');
   const siv = raw.match(/^([A-Z]{2})(\d{3})([A-Z]{2})$/);
   if (siv) return `${siv[1]}-${siv[2]}-${siv[3]}`;
-  return raw || value;
+  return String(value || '').trim();
+}
+
+// Extrait cylindrée + puissance directement depuis le texte Whisper brut
+// Court-circuite GPT qui se trompe sur la cylindrée
+function extractMotorisationFromText(text) {
+  if (!text) return null;
+
+  const t = text.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // Cylindrée — couvre formes numériques (2 litres 2) ET verbales (deux litres deux)
+  // Ordre important : du plus spécifique au plus général
+  let cyl = null;
+  if (/(?:2|deux)\s*litres?\s*(?:3|trois)\b|2[,.]3\b/.test(t))     cyl = '2.3';
+  else if (/(?:2|deux)\s*litres?\s*(?:2|deux)\b|2[,.]2\b/.test(t)) cyl = '2.2';
+  else if (/(?:2|deux)\s*litres?\s*(?:1|un)\b|2[,.]1\b/.test(t))   cyl = '2.1';
+  else if (/(?:3|trois)\s*litres?\b|3[,.]0\b/.test(t))              cyl = '3.0';
+  else if (/(?:2|deux)\s*litres?\b|2[,.]0\b/.test(t))               cyl = '2.0';
+
+  // Puissance (ex: "140 chevaux", "140 ch")
+  let power = null;
+  const pwMatch = t.match(/(\d{3})\s*(?:ch\b|chevaux|cheval)/);
+  if (pwMatch) power = pwMatch[1];
+
+  if (!cyl && !power) return null;
+  return { cyl, power };
 }
 
 function normalizeMotorisation(value) {
