@@ -126,7 +126,7 @@ app.post('/api/transcribe-and-analyze', upload.single('audio'), async (req, res)
       file: audioFile,
       model: 'whisper-1',
       language: 'fr',
-      prompt: `Dictée VO camping-car Ypocamp. Préserver noms propres, marques camping-cars (Rapido, Hymer, Pilote, Adria, Bürstner, Laika, Chausson, Dethleffs, Fleurette, Autostar...), porteurs (Ducato, Boxer, Jumper, Transit, Sprinter, Master, Daily), immatriculations format français, dates MEC, prix en euros, travaux avec montants.`,
+      prompt: `Dictée VO camping-car Ypocamp. Préserver noms propres, marques camping-cars (Rapido, Hymer, Pilote, Adria, Bürstner, Laika, Chausson, Dethleffs, Fleurette, Autostar...), porteurs (Ducato, Boxer, Jumper, Transit, Sprinter, Master, Daily), immatriculations format français, dates MEC, prix en euros, travaux avec montants.
 
 Variantes orales :
 - "deux litres trois" = 2.3
