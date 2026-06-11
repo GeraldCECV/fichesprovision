@@ -126,36 +126,7 @@ app.post('/api/transcribe-and-analyze', upload.single('audio'), async (req, res)
       file: audioFile,
       model: 'whisper-1',
       language: 'fr',
-      prompt: `Dictée VO camping-car Ypocamp. Préserver noms propres, marques camping-cars (Rapido, Hymer, Pilote, Adria, Bürstner, Laika, Chausson, Dethleffs, Fleurette, Autostar...), porteurs (Ducato, Boxer, Jumper, Transit, Sprinter, Master, Daily), immatriculations format français, dates MEC, prix en euros, travaux avec montants.
-
-Variantes orales :
-- "deux litres trois" = 2.3
-- "deux litres deux" = 2.2
-- "deux litres" = 2.0
-- "cent trente" = 130
-- "cent quarante" = 140
-- "cent cinquante" = 150
-- "cent soixante" = 160
-- "cent soixante dix" = 170
-- "cent quatre vingt" = 180
-
-Porteurs :
-- ducato = Fiat Ducato
-- boxer = Peugeot Boxer
-- jumper = Citroën Jumper
-- transit = Ford Transit
-- sprinter = Mercedes Sprinter
-- master = Renault Master
-- daily = Iveco Daily
-- crafter = Volkswagen Crafter
-- transporter = Volkswagen Transporter
-- TGE = MAN TGE
-
-Pneus :
-- pneus avant = avant
-- pneus arrière = arrière
-- 4 pneus = avant + arrière
-`,
+      prompt: `Dictee VO camping-car Ypocamp. Preserver noms propres, marques camping-cars (Rapido, Hymer, Pilote, Adria, Burstner, Laika, Chausson, Dethleffs, Fleurette, Autostar...), porteurs (Ducato, Boxer, Jumper, Transit, Sprinter, Master, Daily), immatriculations format francais, dates MEC, prix en euros, travaux avec montants. Variantes orales: 2 litres 2 = 2.2, 2 litres 3 = 2.3, deux litres deux = 2.2, deux litres trois = 2.3, cent quarante = 140, cent cinquante = 150, cent soixante = 160. Porteurs: ducato = Fiat Ducato, boxer = Peugeot Boxer, jumper = Citroen Jumper, transit = Ford Transit, sprinter = Mercedes Sprinter, master = Renault Master, daily = Iveco Daily. Immatriculation format: AB-123-CD.`,
     });
 
     const text = transcription.text || '';
