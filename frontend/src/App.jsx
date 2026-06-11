@@ -54,6 +54,14 @@ function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+// Formate l'immatriculation au format SIV français : AB-123-CD
+function formatImmatFront(value) {
+  const raw = String(value || '').toUpperCase().replace(/[\s\-]/g, '');
+  const siv = raw.match(/^([A-Z]{2})(\d{3})([A-Z]{2})$/);
+  if (siv) return `${siv[1]}-${siv[2]}-${siv[3]}`;
+  return value; // retourner la valeur brute si format non reconnu (saisie en cours)
+}
+
 function capitalizeFirst(str) {
   const value = String(str || '').trim();
   if (!value) return '';
@@ -454,15 +462,18 @@ function App() {
                         type="text"
                         value={data.vehicle[key] || ''}
                         className={data.vehicle[key] ? 'filled' : ''}
-                        onChange={e =>
+                        onChange={e => {
+                          const val = key === 'immat'
+                            ? formatImmatFront(e.target.value)
+                            : e.target.value;
                           setData(prev => ({
                             ...prev,
                             vehicle: {
                               ...prev.vehicle,
-                              [key]: e.target.value,
+                              [key]: val,
                             },
-                          }))
-                        }
+                          }));
+                        }}
                       />
                     </div>
                   ))}
