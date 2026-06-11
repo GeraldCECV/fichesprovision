@@ -214,6 +214,9 @@ Motorisation : extraire même approximativement, le serveur normalisera.``,
     if (data.vehicle.motorisation) {
       data.vehicle.motorisation = normalizeMotorisation(data.vehicle.motorisation);
     }
+    if (data.vehicle.immat) {
+      data.vehicle.immat = formatImmat(data.vehicle.immat);
+    }
 
     data.mechanics = normalizeMechanics(data.mechanics);
     data.body = normalizeLines(data.body);
@@ -383,6 +386,14 @@ app.post('/api/generate-excel', async (req, res) => {
     });
   }
 });
+
+// Formate l'immatriculation au format français SIV : AA-123-BB
+function formatImmat(value) {
+  const raw = String(value || '').toUpperCase().replace(/[\s\-]/g, '');
+  const siv = raw.match(/^([A-Z]{2})(\d{3})([A-Z]{2})$/);
+  if (siv) return `${siv[1]}-${siv[2]}-${siv[3]}`;
+  return raw || value;
+}
 
 function normalizeMotorisation(value) {
   const original = String(value || '').trim();
