@@ -188,7 +188,7 @@ Règles mécanique :
 Travaux carrosserie → body [{desc, amount}]
 Travaux cellule → cell [{desc, amount}]
 
-Motorisation : extraire même approximativement, le serveur normalisera.``,
+Motorisation : retranscrire EXACTEMENT ce qui est dit, sans corriger ni interpréter. Si "2 litres 2" est dit, écrire "2.2". Si "2 litres 3" est dit, écrire "2.3". Ne jamais substituer une cylindrée par une autre. Le serveur normalisera ensuite.`,
         },
         {
           role: 'user',
@@ -261,7 +261,7 @@ app.post('/api/analyze', async (req, res) => {
       messages: [
         {
           role: 'system',
-          content: `Tu es un assistant expert VO camping-car Ypocamp. Retourne UNIQUEMENT un JSON valide sans markdown ni backticks.\n\nFormat exact :\n{\"vehicle\":{\"marque\":\"\",\"modele\":\"\",\"motorisation\":\"\",\"mec\":\"\",\"immat\":\"\",\"prixAchat\":\"\",\"cessionOdoo\":\"\",\"commercial\":\"\"},\"mechanics\":{\"prepEsthetique\":\"NON\",\"ct\":\"NON\",\"vidangeSimple\":\"NON\",\"vidangeComplete\":\"NON\",\"courroie\":\"NON\",\"pneusAvant\":\"NON\",\"pneusArriere\":\"NON\",\"pneus\":\"0\",\"batterie\":\"NON\",\"autresMeca\":\"0\"},\"body\":[],\"cell\":[]}\n\nRègles mécanique :\n- prepEsthetique=OUI si prépa/nettoyage/esthétique\n- ct=OUI si contrôle technique\n- vidangeSimple=OUI si vidange (simple)\n- vidangeComplete=OUI si vidange complète\n- courroie=OUI si courroie distribution\n- batterie=OUI si batterie\n- pneusAvant=OUI si pneus avant, pneusArriere=OUI si pneus arrière, 4 pneus = avant+arrière\n- pneus=0 (aucun), 1 (avant OU arrière), 2 (avant ET arrière)\n\nTravaux carrosserie → body [{desc, amount}]\nTravaux cellule → cell [{desc, amount}]\n\nMotorisation : extraire même approximativement, le serveur normalisera.`,
+          content: `Tu es un assistant expert VO camping-car Ypocamp. Retourne UNIQUEMENT un JSON valide sans markdown ni backticks.\n\nFormat exact :\n{\"vehicle\":{\"marque\":\"\",\"modele\":\"\",\"motorisation\":\"\",\"mec\":\"\",\"immat\":\"\",\"prixAchat\":\"\",\"cessionOdoo\":\"\",\"commercial\":\"\"},\"mechanics\":{\"prepEsthetique\":\"NON\",\"ct\":\"NON\",\"vidangeSimple\":\"NON\",\"vidangeComplete\":\"NON\",\"courroie\":\"NON\",\"pneusAvant\":\"NON\",\"pneusArriere\":\"NON\",\"pneus\":\"0\",\"batterie\":\"NON\",\"autresMeca\":\"0\"},\"body\":[],\"cell\":[]}\n\nRègles mécanique :\n- prepEsthetique=OUI si prépa/nettoyage/esthétique\n- ct=OUI si contrôle technique\n- vidangeSimple=OUI si vidange (simple)\n- vidangeComplete=OUI si vidange complète\n- courroie=OUI si courroie distribution\n- batterie=OUI si batterie\n- pneusAvant=OUI si pneus avant, pneusArriere=OUI si pneus arrière, 4 pneus = avant+arrière\n- pneus=0 (aucun), 1 (avant OU arrière), 2 (avant ET arrière)\n\nTravaux carrosserie → body [{desc, amount}]\nTravaux cellule → cell [{desc, amount}]\n\nMotorisation : retranscrire EXACTEMENT ce qui est dit, sans corriger ni interpréter. Si "2 litres 2" est dit, écrire "2.2". Si "2 litres 3" est dit, écrire "2.3". Ne jamais substituer une cylindrée par une autre. Le serveur normalisera ensuite.`,
         },
         {
           role: 'user',
@@ -281,6 +281,9 @@ app.post('/api/analyze', async (req, res) => {
 
     if (data.vehicle.motorisation) {
       data.vehicle.motorisation = normalizeMotorisation(data.vehicle.motorisation);
+    }
+    if (data.vehicle.immat) {
+      data.vehicle.immat = formatImmat(data.vehicle.immat);
     }
 
     data.mechanics = normalizeMechanics(data.mechanics);
@@ -441,8 +444,12 @@ function scoreMotorisation(input, candidate) {
   const inputCyl = input.match(/\b(2\.0|2\.1|2\.2|2\.3|3\.0)\b/);
   const candidateCyl = candidate.match(/\b(2\.0|2\.1|2\.2|2\.3|3\.0)\b/);
 
-  if (inputCyl && candidateCyl && inputCyl[1] === candidateCyl[1]) {
-    score += 2;
+  if (inputCyl && candidateCyl) {
+    if (inputCyl[1] === candidateCyl[1]) {
+      score += 5; // correspondance exacte cylindrée = bonus fort
+    } else {
+      score -= 5; // cylindrée différente = pénalité éliminatoire
+    }
   }
 
   return score;
