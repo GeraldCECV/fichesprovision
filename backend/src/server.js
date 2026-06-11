@@ -165,7 +165,7 @@ Pneus :
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       temperature: 0.1,
-      max_tokens: 600,
+      max_tokens: 400,
       response_format: { type: 'json_object' },
       messages: [
         {
@@ -256,7 +256,7 @@ app.post('/api/analyze', async (req, res) => {
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       temperature: 0.1,
-      max_tokens: 600,
+      max_tokens: 400,
       response_format: { type: 'json_object' },
       messages: [
         {
