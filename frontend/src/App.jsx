@@ -619,7 +619,7 @@ function App() {
   );
 
   return (
-    <div className="app">
+    <div className={recording ? 'app is-recording' : 'app'}>
       <header className="topbar">
         <div className="brand">
           <img src="/logo_ypocamp.jpeg" alt="YpoCamp" />
@@ -1243,6 +1243,18 @@ function App() {
           </div>
         </section>
       </div>
+      {recording && (
+        <div className="mobile-recording-dock">
+          <button className="danger" onClick={() => recorder.current?.stop()}>
+            <span className="recording-dot" aria-hidden="true" />
+            <span>Arrêter la dictée</span>
+            <span className="recording-time">
+              {String(Math.floor(seconds / 60)).padStart(2, '0')}:
+              {String(seconds % 60).padStart(2, '0')}
+            </span>
+          </button>
+        </div>
+      )}
       <footer>
         Provision VO · Les références restent fidèles à votre saisie. La dictée remplit les champs
         automatiquement. Vérifiez les références et les montants.

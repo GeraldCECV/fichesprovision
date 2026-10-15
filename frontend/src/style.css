@@ -1702,3 +1702,50 @@ footer {
     display: none;
   }
 }
+
+.mobile-recording-dock {
+  display: none;
+}
+@media (max-width: 760px) {
+  .app.is-recording {
+    padding-bottom: calc(94px + env(safe-area-inset-bottom));
+  }
+  .is-recording .bottom-actions {
+    bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+  .mobile-recording-dock {
+    display: block;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    padding: 12px 15px calc(12px + env(safe-area-inset-bottom));
+    background: #fff;
+    box-shadow: 0 -4px 20px #20242b1a;
+    border-top: 1px solid #eadcda;
+  }
+  .mobile-recording-dock button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 56px;
+    border-radius: 12px;
+    font-size: 15px;
+  }
+  .recording-dot {
+    display: block;
+    width: 11px;
+    height: 11px;
+    background: white;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .recording-time {
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    opacity: 0.9;
+  }
+}
