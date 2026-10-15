@@ -13,7 +13,10 @@ import {
 import { BRANDS, ENGINE_HINTS } from './catalog.js';
 import './style.css';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API =
+  import.meta.env.VITE_PRODUCTION_API_URL ||
+  import.meta.env.VITE_API_URL ||
+  'http://localhost:8080';
 const DRAFT = 'provision-vo-draft-v2';
 const STEPS = [
   ['vehicle', 'Le véhicule', 'Identité & acquisition'],
