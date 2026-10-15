@@ -44,10 +44,11 @@ function restore() {
       !saved.data.inspection
     )
       return empty();
+    const { vin, stock, ...vehicle } = saved.data.vehicle;
     return {
       ...empty(),
       ...saved,
-      data: { ...saved.data, taxBasis: 'HT' },
+      data: { ...saved.data, vehicle, taxBasis: 'HT' },
       active: STEPS.some(([s]) => s === saved.active) ? saved.active : 'vehicle',
     };
   } catch {
@@ -723,10 +724,7 @@ function App() {
                 <div className="fields">
                   {Object.entries(VEHICLE_LABELS).map(([key, label]) => (
                     <label className="field" key={key} htmlFor={key}>
-                      <span>
-                        {label}
-                        {['vin', 'stock'].includes(key) ? ' (facultatif)' : ' *'}
-                      </span>
+                      <span>{label}*</span>
                       <input
                         id={key}
                         type={key === 'mec' ? 'date' : 'text'}

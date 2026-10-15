@@ -5,9 +5,7 @@ export const VEHICLE_LABELS = {
   motorisation: 'Motorisation',
   mec: 'Première mise en circulation',
   immat: 'Immatriculation',
-  vin: 'VIN / numéro de châssis',
   kilometrage: 'Kilométrage',
-  stock: 'Numéro de stock',
   prixAchat: 'Prix d’achat HT',
   cessionOdoo: 'Cession Odoo HT',
   commercial: 'Réalisé par',
@@ -162,8 +160,6 @@ export function validate(data, now = new Date()) {
   } catch (e) {
     add('vehicle.mec', e.message);
   }
-  if (v.vin && !/^[A-HJ-NPR-Z0-9]{17}$/i.test(v.vin))
-    add('vehicle.vin', 'VIN : 17 caractères, sans I, O ni Q');
   if (!/^\d{1,7}$/.test(v.kilometrage || ''))
     add('vehicle.kilometrage', 'Kilométrage entier requis');
   for (const key of ['prixAchat', 'cessionOdoo']) {

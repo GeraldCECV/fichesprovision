@@ -83,14 +83,13 @@ test('validation obligatoire des contrôles et confirmations', () => {
       path,
     );
 });
-test('refuse incohérences, montants manquants et VIN erroné', () => {
+test('refuse incohérences et montants manquants', () => {
   const d = valid();
   d.mechanics.vidangeSimple = 'OUI';
   d.mechanics.vidangeComplete = 'OUI';
-  d.vehicle.vin = 'INVALID';
   d.body = [{ desc: 'Travaux', amount: '' }];
   const errors = validate(d, NOW);
-  for (const path of ['mechanics.vidangeComplete', 'vehicle.vin', 'body.0.amount'])
+  for (const path of ['mechanics.vidangeComplete', 'body.0.amount'])
     assert.ok(errors.some((e) => e.path === path));
 });
 test('plus de 200 lignes est une erreur explicite, jamais une troncature', () => {
