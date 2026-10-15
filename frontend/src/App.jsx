@@ -48,6 +48,7 @@ function restore() {
     return {
       ...empty(),
       ...saved,
+      voiceWarnings: {},
       data: { ...saved.data, vehicle, taxBasis: 'HT' },
       active: STEPS.some(([s]) => s === saved.active) ? saved.active : 'vehicle',
     };
@@ -219,6 +220,7 @@ function App() {
   }
 
   async function transcribe(blob, block) {
+    const operation = generation.current;
     setBusy('Transcription en cours');
     setStatus('');
     try {
@@ -226,6 +228,7 @@ function App() {
       const ext = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
       fd.append('audio', blob, `dictee.${ext}`);
       const json = await (await request('/api/transcribe', fd, true)).json();
+      if (operation !== generation.current) return;
       if (!json.text?.trim()) throw new Error('Aucune parole reconnue. Réécoutez ou recommencez.');
       setForm((prev) => ({
         ...prev,
@@ -242,6 +245,7 @@ function App() {
       }
       setBusy('Remplissage automatique des champs');
       const result = await (await request('/api/analyze', { text: json.text, block })).json();
+      if (operation !== generation.current) return;
       setUndo(structuredClone(data));
       setForm((prev) => ({
         ...prev,
@@ -261,9 +265,9 @@ function App() {
         'Dictée appliquée : les champs ont été remplis automatiquement. Vérifiez les références et les montants ; vous pouvez corriger les champs ou annuler ce remplissage.',
       );
     } catch (e) {
-      setStatus(e.message);
+      if (operation === generation.current) setStatus(e.message);
     } finally {
-      setBusy('');
+      if (operation === generation.current) setBusy('');
     }
   }
   async function record() {
@@ -419,6 +423,13 @@ function App() {
     )
       return;
     generation.current++;
+    abort.current?.abort();
+    voiceBlock.current = null;
+    appliedAudio.current = new WeakSet();
+    setVoiceOpen(false);
+    setReviewConfirmed(false);
+    setReplace(false);
+    setBusy('');
     lastBlob.current = null;
     setAudio(null);
     setUndo(null);
@@ -702,7 +713,7 @@ function App() {
             </button>
           )}
           {voice}
-          {form.voiceWarnings?.[active]?.length > 0 && (
+          {texts[active]?.trim() && form.voiceWarnings?.[active]?.length > 0 && (
             <p className="notice">Points à vérifier : {form.voiceWarnings[active].join(' · ')}.</p>
           )}
           {review && (
