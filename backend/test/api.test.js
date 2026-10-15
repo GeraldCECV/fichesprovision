@@ -250,3 +250,57 @@ test('entrée analyse et charge utile excessives refusées avant appel payant', 
   );
   assert.equal(calls, 0);
 });
+
+test('dictée et analyse dans une requête ; transcription conservée si analyse échoue', async (t) => {
+  let fail = false,
+    calls = 0;
+  const client = {
+    audio: { transcriptions: { create: async () => ({ text: 'Pas de cession Odoo.' }) } },
+    chat: {
+      completions: {
+        create: async (args) => {
+          calls++;
+          assert.deepEqual(
+            Object.keys(args.response_format.json_schema.schema.properties.mechanics.properties),
+            [],
+          );
+          if (fail) throw new Error('service temporairement indisponible');
+          return {
+            choices: [
+              {
+                finish_reason: 'stop',
+                message: {
+                  content: JSON.stringify({
+                    vehicle: { cessionOdoo: '0.00' },
+                    mechanics: {},
+                    body: [],
+                    cell: [],
+                    warnings: [],
+                  }),
+                },
+              },
+            ],
+          };
+        },
+      },
+    },
+  };
+  const base = await server(t, { client });
+  async function send(block = 'vehicle') {
+    const form = new FormData();
+    form.append('audio', new Blob(['test'], { type: 'audio/webm' }), 'test.webm');
+    form.append('block', block);
+    return fetch(`${base}/api/transcribe`, { method: 'POST', body: form });
+  }
+  const response = await send();
+  assert.equal(response.status, 200);
+  const json = await response.json();
+  assert.equal(json.data.vehicle.cessionOdoo, '0.00');
+  assert.equal(json.text, 'Pas de cession Odoo.');
+  fail = true;
+  const retry = await (await send()).json();
+  assert.equal(retry.text, json.text);
+  assert.ok(retry.analysisError);
+  assert.equal((await send('unknown')).status, 400);
+  assert.equal(calls, 2);
+});

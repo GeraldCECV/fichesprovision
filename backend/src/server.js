@@ -161,6 +161,9 @@ export function createApp({
           });
         if (!req.file?.buffer?.length)
           return res.status(400).json({ error: 'Enregistrement vide' });
+        const block = req.body?.block;
+        if (block && !['vehicle', 'mechanics', 'body', 'cell'].includes(block))
+          return res.status(400).json({ error: 'Rubrique invalide' });
         const type = req.file.mimetype.split(';')[0];
         const ext =
           {
@@ -196,7 +199,22 @@ export function createApp({
               ),
             ].slice(0, 30)
           : [];
-        res.json({ text: result.text || '', uncertain });
+        const text = result.text || '';
+        if (block && text.trim() && text.length <= 18000) {
+          try {
+            const data = await analyze(api, text, block, controller.signal);
+            return res.json({ text, uncertain, data });
+          } catch {
+            if (controller.signal.aborted) return;
+            return res.json({
+              text,
+              uncertain,
+              analysisError:
+                'Le texte a été transcrit, mais le remplissage a échoué. Vous pouvez relancer l’analyse du texte.',
+            });
+          }
+        }
+        res.json({ text, uncertain });
       } catch (e) {
         next(e);
       } finally {

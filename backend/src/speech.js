@@ -97,6 +97,24 @@ export function validateProposal(data, block) {
     });
   return proposal;
 }
+export function extractionSchemaFor(block) {
+  return {
+    ...EXTRACTION_SCHEMA,
+    properties: {
+      ...EXTRACTION_SCHEMA.properties,
+      vehicle: block === 'vehicle' ? EXTRACTION_SCHEMA.properties.vehicle : object({}),
+      mechanics: block === 'mechanics' ? EXTRACTION_SCHEMA.properties.mechanics : object({}),
+      body:
+        block === 'body'
+          ? EXTRACTION_SCHEMA.properties.body
+          : { ...EXTRACTION_SCHEMA.properties.body, maxItems: 0 },
+      cell:
+        block === 'cell'
+          ? EXTRACTION_SCHEMA.properties.cell
+          : { ...EXTRACTION_SCHEMA.properties.cell, maxItems: 0 },
+    },
+  };
+}
 export async function analyze(client, text, block, signal) {
   const completion = await client.chat.completions.create(
     {
@@ -105,7 +123,11 @@ export async function analyze(client, text, block, signal) {
       max_tokens: 12000,
       response_format: {
         type: 'json_schema',
-        json_schema: { name: 'provision_dictation', strict: true, schema: EXTRACTION_SCHEMA },
+        json_schema: {
+          name: 'provision_dictation',
+          strict: true,
+          schema: extractionSchemaFor(block),
+        },
       },
       messages: [
         { role: 'system', content: EXTRACTION_PROMPT },

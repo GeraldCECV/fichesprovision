@@ -249,12 +249,13 @@ function App() {
 
   async function transcribe(blob, block) {
     const operation = generation.current;
-    setBusy('Transcription en cours');
+    setBusy('Reconnaissance et remplissage en cours');
     setStatus('');
     try {
       const fd = new FormData();
       const ext = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
       fd.append('audio', blob, `dictee.${ext}`);
+      if (!appliedAudio.current.has(blob)) fd.append('block', block);
       const json = await (await request('/api/transcribe', fd, true)).json();
       if (operation !== generation.current) return;
       if (!json.text?.trim()) throw new Error('Aucune parole reconnue. Réécoutez ou recommencez.');
@@ -272,7 +273,10 @@ function App() {
         return;
       }
       setBusy('Remplissage automatique des champs');
-      const result = await (await request('/api/analyze', { text: json.text, block })).json();
+      if (json.analysisError) throw new Error(json.analysisError);
+      const result = json.data
+        ? { data: json.data }
+        : await (await request('/api/analyze', { text: json.text, block })).json();
       if (operation !== generation.current) return;
       setUndo(structuredClone(data));
       setForm((prev) => ({
@@ -335,7 +339,10 @@ function App() {
         'audio/webm',
         'audio/ogg;codecs=opus',
       ].find((t) => MediaRecorder.isTypeSupported(t));
-      const rec = new MediaRecorder(media, mime ? { mimeType: mime } : undefined);
+      const rec = new MediaRecorder(media, {
+        ...(mime ? { mimeType: mime } : {}),
+        audioBitsPerSecond: 64000,
+      });
       recorder.current = rec;
       chunks.current = [];
       size.current = 0;
