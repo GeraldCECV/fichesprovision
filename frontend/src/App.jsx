@@ -65,6 +65,7 @@ function App() {
       return false;
     }
   });
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState(''),
     [status, setStatus] = useState('');
   const [health, setHealth] = useState(null),
@@ -415,94 +416,124 @@ function App() {
   }
 
   const voice = active !== 'validation' && (
-    <section className="voice card" aria-label="Assistant de dictée">
-      <div className="section-heading">
-        <div>
-          <span className="eyebrow">SAISIE VOCALE</span>
-          <h2>Notes d’inspection</h2>
-        </div>
-        <span className="pill">Relecture avant application</span>
-      </div>
-      <p>
-        Une information à la fois, avec sa valeur. Épelez les plaques et références ; prononcez les
-        euros et les centimes.
-      </p>
-      <div className="voice-actions">
-        <button
-          className={recording ? 'danger' : 'primary'}
-          onClick={record}
-          disabled={Boolean(busy || loginNeeded || !health?.speechAvailable)}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            aria-hidden="true"
-          >
+    <details
+      className="voice card"
+      open={voiceOpen}
+      onToggle={(event) => setVoiceOpen(event.currentTarget.open)}
+    >
+      <summary className="voice-toggle">
+        <span className="voice-symbol" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
             <rect x="9" y="3" width="6" height="12" rx="3" />
             <path d="M6 11v1a6 6 0 0 0 12 0v-1M12 18v3M8 21h8" />
           </svg>
-          {recording ? `Arrêter · ${seconds}s / 180s` : 'Démarrer la dictée'}
-        </button>
-        {busy && <button onClick={() => abort.current?.abort()}>Interrompre le traitement</button>}
-        <span className="muted">
-          {recording ? 'Microphone ouvert — enregistrement en cours' : 'Microphone fermé'}
         </span>
-      </div>
-      {audio && (
-        <div className="playback">
-          <audio controls src={audio} aria-label="Réécouter la dernière dictée" />
-          <button
-            disabled={locked || loginNeeded}
-            onClick={() => transcribe(lastBlob.current, voiceBlock.current)}
-          >
-            Relancer la transcription
-          </button>
+        <span>
+          <strong>Dicter mes observations</strong>
+          <small>Parlez, relisez, puis appliquez à la fiche.</small>
+        </span>
+        <span className="voice-toggle-state">
+          {recording
+            ? `En cours · ${seconds}s`
+            : busy
+              ? 'Traitement…'
+              : voiceOpen
+                ? 'Fermer'
+                : 'Ouvrir'}
+          <span aria-hidden="true"> +</span>
+        </span>
+      </summary>
+      <div className="voice-content">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">SAISIE VOCALE</span>
+            <h2>Notes d’inspection</h2>
+          </div>
+          <span className="pill">Relecture avant application</span>
         </div>
-      )}
-      <label className="transcript-label" htmlFor="transcript">
-        Transcription à vérifier <span>Vous pouvez aussi saisir votre texte directement</span>
-      </label>
-      <textarea
-        id="transcript"
-        rows="3"
-        maxLength={18000}
-        placeholder="Ex. Réparation du pare-chocs avant, 450 euros et 50 centimes."
-        value={texts[active] || ''}
-        disabled={locked || Boolean(review)}
-        onChange={(e) =>
-          setForm((prev) => ({ ...prev, texts: { ...prev.texts, [active]: e.target.value } }))
-        }
-      />
-      {form.voiceWarnings?.[active]?.length > 0 && (
-        <p className="notice">
-          Fragments à réécouter : {form.voiceWarnings[active].join(' · ')}. Ce signal ne garantit
-          pas l’exactitude des autres mots.
-        </p>
-      )}
-      <button
-        onClick={analyzeText}
-        disabled={
-          locked ||
-          loginNeeded ||
-          Boolean(review) ||
-          !texts[active]?.trim() ||
-          !health?.speechAvailable
-        }
-      >
-        Analyser le texte vérifié →
-      </button>
-      <details className="privacy">
-        <summary>Traitement des données vocales</summary>
         <p>
-          L’audio est envoyé au serveur puis à OpenAI pour transcription ; le texte corrigé est
-          envoyé à OpenAI uniquement lors de l’analyse. Le serveur traite l’audio en mémoire, sans
-          fichier conservé. La copie de réécoute reste dans cet onglet jusqu’à son remplacement ou
-          sa fermeture. Aucun enregistrement n’est envoyé au service vocal natif du navigateur.
+          Une information à la fois, avec sa valeur. Épelez les plaques et références ; prononcez
+          les euros et les centimes.
         </p>
-      </details>
-    </section>
+        <div className="voice-actions">
+          <button
+            className={recording ? 'danger' : 'primary'}
+            onClick={record}
+            disabled={Boolean(busy || loginNeeded || !health?.speechAvailable)}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              aria-hidden="true"
+            >
+              <rect x="9" y="3" width="6" height="12" rx="3" />
+              <path d="M6 11v1a6 6 0 0 0 12 0v-1M12 18v3M8 21h8" />
+            </svg>
+            {recording ? `Arrêter · ${seconds}s / 180s` : 'Démarrer la dictée'}
+          </button>
+          {busy && (
+            <button onClick={() => abort.current?.abort()}>Interrompre le traitement</button>
+          )}
+          <span className="muted">
+            {recording ? 'Microphone ouvert — enregistrement en cours' : 'Microphone fermé'}
+          </span>
+        </div>
+        {audio && (
+          <div className="playback">
+            <audio controls src={audio} aria-label="Réécouter la dernière dictée" />
+            <button
+              disabled={locked || loginNeeded}
+              onClick={() => transcribe(lastBlob.current, voiceBlock.current)}
+            >
+              Relancer la transcription
+            </button>
+          </div>
+        )}
+        <label className="transcript-label" htmlFor="transcript">
+          Transcription à vérifier <span>Vous pouvez aussi saisir votre texte directement</span>
+        </label>
+        <textarea
+          id="transcript"
+          rows="3"
+          maxLength={18000}
+          placeholder="Ex. Réparation du pare-chocs avant, 450 euros et 50 centimes."
+          value={texts[active] || ''}
+          disabled={locked || Boolean(review)}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, texts: { ...prev.texts, [active]: e.target.value } }))
+          }
+        />
+        {form.voiceWarnings?.[active]?.length > 0 && (
+          <p className="notice">
+            Fragments à réécouter : {form.voiceWarnings[active].join(' · ')}. Ce signal ne garantit
+            pas l’exactitude des autres mots.
+          </p>
+        )}
+        <button
+          onClick={analyzeText}
+          disabled={
+            locked ||
+            loginNeeded ||
+            Boolean(review) ||
+            !texts[active]?.trim() ||
+            !health?.speechAvailable
+          }
+        >
+          Analyser le texte vérifié →
+        </button>
+        <details className="privacy">
+          <summary>Traitement des données vocales</summary>
+          <p>
+            L’audio est envoyé au serveur puis à OpenAI pour transcription ; le texte corrigé est
+            envoyé à OpenAI uniquement lors de l’analyse. Le serveur traite l’audio en mémoire, sans
+            fichier conservé. La copie de réécoute reste dans cet onglet jusqu’à son remplacement ou
+            sa fermeture. Aucun enregistrement n’est envoyé au service vocal natif du navigateur.
+          </p>
+        </details>
+      </div>
+    </details>
   );
 
   return (
@@ -530,7 +561,7 @@ function App() {
       </header>
       <div className="workspace">
         <aside>
-          <span className="eyebrow">DOSSIER VÉHICULE</span>
+          <span className="eyebrow">ESPACE INSPECTION</span>
           <nav aria-label="Étapes de la provision">
             {STEPS.map(([id, label, sub], i) => {
               const complete =
@@ -589,7 +620,7 @@ function App() {
               <h1>{STEPS[step][1]}</h1>
               <p>
                 {active === 'vehicle'
-                  ? 'Des informations exactes, sans approximation de catalogue.'
+                  ? 'Identifiez le véhicule et renseignez les conditions d’acquisition.'
                   : active === 'validation'
                     ? 'Tous les montants et contrôles réunis avant export.'
                     : 'Contrôlez chaque poste et chiffrez les travaux nécessaires.'}
@@ -597,6 +628,24 @@ function App() {
             </div>
             <span className="page-badge">{data.vehicle.commercial || 'Auteur à renseigner'}</span>
           </div>
+          <section className="dossier-overview" aria-label="Véhicule en cours">
+            <div className="dossier-identity">
+              <span className="eyebrow">FICHE DE PROVISION VO</span>
+              <strong>
+                {[data.vehicle.marque, data.vehicle.modele].filter(Boolean).join(' ') ||
+                  'Nouveau véhicule'}
+              </strong>
+              <span>{data.vehicle.motorisation || 'Motorisation à renseigner'}</span>
+            </div>
+            <div className="dossier-metric">
+              <span>Immatriculation</span>
+              <strong className="plate">{data.vehicle.immat || '—'}</strong>
+            </div>
+            <div className="dossier-metric">
+              <span>Kilométrage</span>
+              <strong>{data.vehicle.kilometrage ? `${data.vehicle.kilometrage} km` : '—'}</strong>
+            </div>
+          </section>
           <div role="status" aria-live="polite" className={status || busy ? 'notice' : 'sr-only'}>
             {busy || status}
           </div>
