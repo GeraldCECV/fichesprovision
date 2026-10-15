@@ -83,7 +83,6 @@ test('validation obligatoire des contrôles et confirmations', () => {
     'inspection.body',
     'inspection.cell',
     'confirmed',
-    'taxBasis',
     'pricingReviewed',
   ])
     assert.ok(
@@ -142,4 +141,11 @@ test('frais inconnus refusés et jamais inclus dans le calcul', () => {
   d.fees.unknown = '999';
   assert.ok(validate(d, NOW).some((e) => e.path === 'fees'));
   assert.equal(totals(d, NOW).total, before);
+});
+
+test('les montants sont HT par défaut et le TTC est refusé', () => {
+  assert.equal(INITIAL.taxBasis, 'HT');
+  const d = valid();
+  d.taxBasis = 'TTC';
+  assert.ok(validate(d, NOW).some((e) => e.path === 'taxBasis'));
 });

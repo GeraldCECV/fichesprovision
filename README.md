@@ -8,7 +8,7 @@ Inspection et chiffrage des véhicules d’occasion : saisie manuelle, dictée r
 - Dictée en trois étapes : transcription avec réécoute → texte corrigible → proposition structurée à confirmer. Aucune analyse ne modifie directement la fiche.
 - Nouvelle dictée partielle : les champs non mentionnés sont préservés. Les travaux sont ajoutés par défaut ; le remplacement est explicite, l’application immédiatement annulable.
 - Absence de montant ≠ zéro. Chaque montant manquant, contrôle incomplet ou incohérence bloque l’export côté interface ET serveur.
-- Calcul en centimes, date calendaire stricte, alternatives mécaniques exclusives, forfaits visibles et base HT/TTC à confirmer. Aucune conversion de TVA implicite.
+- Calcul en centimes, date calendaire stricte, alternatives mécaniques exclusives, forfaits visibles et montants exclusivement HT. Aucune conversion de TVA implicite.
 - Jusqu’à 200 travaux dans chaque rubrique. Au-delà de la capacité de la fiche historique, le total est lié à l’onglet **Travaux** contenant toutes les lignes. Aucun dépassement silencieux.
 - Brouillon sauvegardé dans l’onglet (`sessionStorage`). Conservation après fermeture uniquement sur choix explicite (`localStorage`) ; aucune archive serveur ni synchronisation entre utilisateurs.
 
@@ -62,7 +62,7 @@ Documentation utilisée : [transcription](https://developers.openai.com/api/docs
 
 ## Règles financières conservées et rendues explicites
 
-Forfaits issus du classeur historique : administration/livraison 1 025 €, esthétique 230 €, CT 80 €, vidange simple 150 €, complète 350 €, distribution seule 600 €, distribution + pompe 850 €, train de pneus 400 €, batterie moteur 180 €. Les frais supplémentaires sont éditables ; les forfaits mécaniques doivent être validés métier avant production. Le choix HT/TTC s’applique uniformément ; aucun mélange ni calcul de TVA automatique.
+Forfaits issus du classeur historique : administration/livraison 1 025 €, esthétique 230 €, CT 80 €, vidange simple 150 €, complète 350 €, distribution seule 600 €, distribution + pompe 850 €, train de pneus 400 €, batterie moteur 180 €. Les frais supplémentaires sont éditables ; les forfaits mécaniques doivent être validés métier avant production. Tous les montants sont exclusivement HT, sans sélecteur ni conversion de TVA.
 
 Provision mauvaises surprises : 250 € jusqu’au quatrième anniversaire inclus, 500 € jusqu’au huitième inclus, 750 € au-delà (date métier Europe/Paris). Les dates partielles ou futures sont bloquées. Prix de revient = achat + provision ; cession Odoo affichée et exportée séparément, selon le modèle historique.
 

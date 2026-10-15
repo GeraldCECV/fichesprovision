@@ -35,7 +35,7 @@ export const INITIAL = {
   fees: { admin: '1025', pack: '0', humidite: '0', divers: '0' },
   confirmed: false,
   pricingReviewed: false,
-  taxBasis: '',
+  taxBasis: 'HT',
   notes: '',
 };
 export const makeId = () => globalThis.crypto.randomUUID();
@@ -224,12 +224,10 @@ export function validate(data, now = new Date()) {
     )
   )
     add('fees', 'Frais non reconnus : vérifiez la fiche');
-  if (!['HT', 'TTC'].includes(data.taxBasis))
-    add('taxBasis', 'Précisez si tous les montants sont HT ou TTC');
+  if (data.taxBasis !== 'HT') add('taxBasis', 'Tous les montants doivent être HT');
   if (typeof data.notes !== 'string' || data.notes.length > 5000)
     add('notes', 'Notes : 5 000 caractères maximum');
-  if (data.pricingReviewed !== true)
-    add('pricingReviewed', 'Confirmez les forfaits et leur base HT/TTC');
+  if (data.pricingReviewed !== true) add('pricingReviewed', 'Confirmez les forfaits et frais HT');
   if (data.confirmed !== true) add('confirmed', 'Relisez et confirmez la fiche avant export');
   return errors;
 }

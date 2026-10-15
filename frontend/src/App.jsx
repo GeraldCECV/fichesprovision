@@ -47,7 +47,7 @@ function restore() {
     return {
       ...empty(),
       ...saved,
-      data: { ...saved.data, confirmed: false },
+      data: { ...saved.data, taxBasis: 'HT', confirmed: false },
       active: STEPS.some(([s]) => s === saved.active) ? saved.active : 'vehicle',
     };
   } catch {
@@ -930,23 +930,6 @@ function App() {
                         />
                       </label>
                     ))}
-                    <label className="field">
-                      <span>Base de tous les montants</span>
-                      <select
-                        value={data.taxBasis}
-                        onChange={(e) =>
-                          change((n) => {
-                            n.taxBasis = e.target.value;
-                            n.pricingReviewed = false;
-                            return n;
-                          })
-                        }
-                      >
-                        <option value="">À préciser</option>
-                        <option value="HT">HT</option>
-                        <option value="TTC">TTC</option>
-                      </select>
-                    </label>
                   </div>
                   <p className="small">
                     Mauvaises surprises : 250 € jusqu’à 4 ans inclus, 500 € jusqu’à 8 ans inclus,
@@ -963,7 +946,7 @@ function App() {
                         })
                       }
                     />
-                    J’ai vérifié les forfaits mécaniques, les frais et la cohérence HT/TTC.
+                    J’ai vérifié les forfaits mécaniques et les frais, tous exprimés HT.
                   </label>
                 </section>
                 <section className="card recap">
@@ -1095,7 +1078,7 @@ function App() {
         <section className="budget" aria-label="Synthèse de la provision">
           <span className="eyebrow">PROVISION ESTIMÉE</span>
           <h2>{money(financial.total)}</h2>
-          <span className="budget-base">{data.taxBasis || 'Base HT/TTC à préciser'}</span>
+          <span className="budget-base">Tous les montants sont HT</span>
           <div className="budget-lines">
             {Object.entries({
               mechanics: 'Mécanique & esthétique',
