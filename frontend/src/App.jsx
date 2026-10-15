@@ -411,10 +411,10 @@ function App() {
     <section className="voice card" aria-label="Assistant de dictée">
       <div className="section-heading">
         <div>
-          <span className="eyebrow">ASSISTANT DE SAISIE</span>
-          <h2>Dictez. Relisez. Confirmez.</h2>
+          <span className="eyebrow">SAISIE VOCALE</span>
+          <h2>Notes d’inspection</h2>
         </div>
-        <span className="pill">Aucune modification automatique</span>
+        <span className="pill">Relecture avant application</span>
       </div>
       <p>
         Une information à la fois, avec sa valeur. Épelez les plaques et références ; prononcez les
@@ -426,7 +426,17 @@ function App() {
           onClick={record}
           disabled={Boolean(busy || loginNeeded || !health?.speechAvailable)}
         >
-          {recording ? `■ Arrêter · ${seconds}s / 180s` : '● Dicter les informations'}
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            aria-hidden="true"
+          >
+            <rect x="9" y="3" width="6" height="12" rx="3" />
+            <path d="M6 11v1a6 6 0 0 0 12 0v-1M12 18v3M8 21h8" />
+          </svg>
+          {recording ? `Arrêter · ${seconds}s / 180s` : 'Démarrer la dictée'}
         </button>
         {busy && <button onClick={() => abort.current?.abort()}>Interrompre le traitement</button>}
         <span className="muted">
@@ -513,7 +523,7 @@ function App() {
       </header>
       <div className="workspace">
         <aside>
-          <span className="eyebrow">VOTRE FICHE</span>
+          <span className="eyebrow">DOSSIER VÉHICULE</span>
           <nav aria-label="Étapes de la provision">
             {STEPS.map(([id, label, sub], i) => {
               const complete =
@@ -1051,7 +1061,7 @@ function App() {
           </div>
         </main>
         <section className="budget" aria-label="Synthèse de la provision">
-          <span className="eyebrow">PROVISION ESTIMÉE</span>
+          <span className="eyebrow">ESTIMATION DE REMISE EN ÉTAT</span>
           <h2>{money(financial.total)}</h2>
           <span className="budget-base">Tous les montants sont HT</span>
           <div className="budget-lines">
