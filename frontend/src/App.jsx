@@ -82,7 +82,6 @@ function App() {
       return false;
     }
   });
-  const [voiceOpen, setVoiceOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState(''),
     [status, setStatus] = useState('');
   const [health, setHealth] = useState(null),
@@ -289,7 +288,6 @@ function App() {
         },
       }));
       appliedAudio.current.add(blob);
-      setVoiceOpen(false);
       setStatus(
         'Dictée appliquée : les champs ont été remplis automatiquement. Vérifiez les références et les montants ; vous pouvez corriger les champs ou annuler ce remplissage.',
       );
@@ -455,7 +453,6 @@ function App() {
     abort.current?.abort();
     voiceBlock.current = null;
     appliedAudio.current = new WeakSet();
-    setVoiceOpen(false);
     setReviewConfirmed(false);
     setReplace(false);
     setBusy('');
@@ -480,38 +477,12 @@ function App() {
   }
 
   const voice = active !== 'validation' && (
-    <details
-      className="voice card"
-      open={voiceOpen}
-      onToggle={(event) => setVoiceOpen(event.currentTarget.open)}
-    >
-      <summary className="voice-toggle">
-        <span className="voice-symbol" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-            <rect x="9" y="3" width="6" height="12" rx="3" />
-            <path d="M6 11v1a6 6 0 0 0 12 0v-1M12 18v3M8 21h8" />
-          </svg>
-        </span>
-        <span>
-          <strong>Dicter mes observations</strong>
-          <small>Parlez : les champs se remplissent à l’arrêt.</small>
-        </span>
-        <span className="voice-toggle-state">
-          {recording
-            ? `En cours · ${seconds}s`
-            : busy
-              ? 'Traitement…'
-              : voiceOpen
-                ? 'Fermer'
-                : 'Ouvrir'}
-          <span aria-hidden="true"> +</span>
-        </span>
-      </summary>
+    <section className="voice card" aria-label="Dictée vocale">
       <div className="voice-content">
         <div className="section-heading">
           <div>
             <span className="eyebrow">SAISIE VOCALE</span>
-            <h2>Notes d’inspection</h2>
+            <h2>Dictée vocale</h2>
           </div>
           <span className="pill">Remplissage automatique</span>
         </div>
@@ -521,7 +492,7 @@ function App() {
         </p>
         <div className="voice-actions">
           <button
-            className={recording ? 'danger' : 'primary'}
+            className={recording ? 'voice-record danger' : 'voice-record primary'}
             onClick={record}
             disabled={Boolean(busy || loginNeeded || !health?.speechAvailable)}
           >
@@ -535,7 +506,7 @@ function App() {
               <rect x="9" y="3" width="6" height="12" rx="3" />
               <path d="M6 11v1a6 6 0 0 0 12 0v-1M12 18v3M8 21h8" />
             </svg>
-            {recording ? `Arrêter · ${seconds}s / 180s` : 'Démarrer la dictée'}
+            {recording ? `Arrêter · ${seconds}s / 180s` : 'Activer la dictée'}
           </button>
           {busy && (
             <button onClick={() => abort.current?.abort()}>Interrompre le traitement</button>
@@ -592,7 +563,7 @@ function App() {
           </p>
         </details>
       </div>
-    </details>
+    </section>
   );
 
   return (

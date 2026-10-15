@@ -1492,3 +1492,15 @@ footer {
     font-size: 13px;
   }
 }
+
+.voice-actions .voice-record.primary {
+  background: #2966ed;
+  border-color: #2966ed;
+  border-radius: 30px;
+  padding: 13px 22px;
+  color: white;
+}
+.voice-actions .voice-record.primary:hover:not(:disabled) {
+  background: #1d52ca;
+  border-color: #1d52ca;
+}
