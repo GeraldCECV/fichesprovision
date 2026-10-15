@@ -2,770 +2,257 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import OpenAI, { toFile } from 'openai';
-import ExcelJS from 'exceljs';
+import { randomBytes, scryptSync, timingSafeEqual, createHmac } from 'node:crypto';
+import { rateLimit } from 'express-rate-limit';
+import { fileURLToPath } from 'node:url';
+import { buildWorkbook } from './workbook.js';
+import { analyze } from './speech.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-const app = express();
-const port = Number(process.env.PORT || 8080);
-
-const upload = multer({
-  dest: '/tmp',
-  limits: {
-    fileSize: 25 * 1024 * 1024,
-  },
-});
-
-app.use(express.json({ limit: '20mb' }));
-
-app.use(cors({
-  origin: process.env.FRONTEND_ORIGIN || true,
-  credentials: true,
-}));
-
-const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null;
-
-const MOTORISATION_CATALOG = [
-  'Fiat Ducato 2.3 120 ch',
-  'Fiat Ducato 2.3 130 ch',
-  'Fiat Ducato 2.3 140 ch',
-  'Fiat Ducato 2.3 150 ch',
-  'Fiat Ducato 2.3 160 ch',
-  'Fiat Ducato 2.3 180 ch',
-  'Fiat Ducato 2.2 120 ch',
-  'Fiat Ducato 2.2 140 ch',
-  'Fiat Ducato 2.2 160 ch',
-  'Fiat Ducato 2.2 180 ch',
-
-  'Peugeot Boxer 2.0 BlueHDi 130 ch',
-  'Peugeot Boxer 2.2 BlueHDi 120 ch',
-  'Peugeot Boxer 2.2 BlueHDi 140 ch',
-  'Peugeot Boxer 2.2 BlueHDi 165 ch',
-
-  'Citroën Jumper 2.0 BlueHDi 130 ch',
-  'Citroën Jumper 2.2 BlueHDi 120 ch',
-  'Citroën Jumper 2.2 BlueHDi 140 ch',
-  'Citroën Jumper 2.2 BlueHDi 165 ch',
-
-  'Ford Transit 2.0 EcoBlue 105 ch',
-  'Ford Transit 2.0 EcoBlue 130 ch',
-  'Ford Transit 2.0 EcoBlue 170 ch',
-  'Ford Transit 2.0 EcoBlue 185 ch',
-  'Ford Transit 2.2 TDCi 125 ch',
-  'Ford Transit 2.2 TDCi 130 ch',
-  'Ford Transit 2.2 TDCi 155 ch',
-
-  'Mercedes Sprinter 2.1 CDI 143 ch',
-  'Mercedes Sprinter 2.1 CDI 163 ch',
-  'Mercedes Sprinter 2.0 CDI 150 ch',
-  'Mercedes Sprinter 2.0 CDI 170 ch',
-  'Mercedes Sprinter 2.0 CDI 190 ch',
-
-  'Renault Master 2.3 dCi 125 ch',
-  'Renault Master 2.3 dCi 130 ch',
-  'Renault Master 2.3 dCi 135 ch',
-  'Renault Master 2.3 dCi 145 ch',
-  'Renault Master 2.3 dCi 150 ch',
-  'Renault Master 2.3 dCi 165 ch',
-  'Renault Master 2.3 dCi 180 ch',
-
-  'Iveco Daily 2.3 136 ch',
-  'Iveco Daily 3.0 146 ch',
-  'Iveco Daily 3.0 160 ch',
-  'Iveco Daily 3.0 180 ch',
-
-  'Volkswagen Crafter 2.0 TDI 140 ch',
-  'Volkswagen Crafter 2.0 TDI 177 ch',
-  'Volkswagen Transporter 2.0 TDI 110 ch',
-  'Volkswagen Transporter 2.0 TDI 150 ch',
-  'Volkswagen Transporter 2.0 TDI 204 ch',
-
-  'MAN TGE 2.0 TDI 140 ch',
-  'MAN TGE 2.0 TDI 177 ch',
-];
-
-app.get('/', (_, res) => {
-  res.send('Provision VO API OK');
-});
-
-app.get('/api/health', (_, res) => {
-  res.json({ ok: true });
-});
-
-app.post('/api/transcribe-and-analyze', upload.single('audio'), async (req, res) => {
-  try {
-    if (!openai) {
-      return res.status(400).json({ error: 'OPENAI_API_KEY manquante' });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ error: 'Aucun audio reçu' });
-    }
-
-    const mime = req.file.mimetype || 'audio/webm';
-    let ext = 'webm';
-
-    if (mime.includes('mp4')) ext = 'mp4';
-    else if (mime.includes('mpeg')) ext = 'mp3';
-    else if (mime.includes('wav')) ext = 'wav';
-    else if (mime.includes('ogg')) ext = 'ogg';
-
-    const audioFile = await toFile(
-      fs.createReadStream(req.file.path),
-      `audio.${ext}`,
-      { type: mime }
+export function createApp({
+  client,
+  password = process.env.APP_PASSWORD,
+  secret = process.env.APP_SESSION_SECRET,
+  production = process.env.NODE_ENV === 'production',
+} = {}) {
+  if (production && (!password || password.length < 12 || !secret || secret.length < 32))
+    throw new Error(
+      'APP_PASSWORD (12 caractères minimum) et APP_SESSION_SECRET (32 minimum) requis en production',
     );
-
-    const transcription = await openai.audio.transcriptions.create({
-      file: audioFile,
-      model: 'whisper-1',
-      language: 'fr',
-      prompt: `Dictee VO camping-car Ypocamp. Preserver noms propres, marques camping-cars (Rapido, Hymer, Pilote, Adria, Burstner, Laika, Chausson, Dethleffs, Fleurette, Autostar...), porteurs (Ducato, Boxer, Jumper, Transit, Sprinter, Master, Daily), immatriculations format francais, dates MEC, prix en euros, travaux avec montants. Variantes orales: 2 litres 2 = 2.2, 2 litres 3 = 2.3, deux litres deux = 2.2, deux litres trois = 2.3, cent quarante = 140, cent cinquante = 150, cent soixante = 160. Porteurs: ducato = Fiat Ducato, boxer = Peugeot Boxer, jumper = Citroen Jumper, transit = Ford Transit, sprinter = Mercedes Sprinter, master = Renault Master, daily = Iveco Daily. Immatriculation format: AB-123-CD.`,
-    });
-
-    const text = transcription.text || '';
-
-    fs.unlink(req.file.path, () => {});
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      temperature: 0.1,
-      max_tokens: 400,
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: `Tu es un assistant expert VO camping-car Ypocamp. Retourne UNIQUEMENT un JSON valide sans markdown ni backticks.
-
-Format exact :
-{"vehicle":{"marque":"","modele":"","motorisation":"","mec":"","immat":"","prixAchat":"","cessionOdoo":"","commercial":""},"mechanics":{"prepEsthetique":"NON","ct":"NON","vidangeSimple":"NON","vidangeComplete":"NON","courroie":"NON","pneusAvant":"NON","pneusArriere":"NON","pneus":"0","batterie":"NON","autresMeca":"0"},"body":[],"cell":[]}
-
-Règles mécanique :
-- prepEsthetique=OUI si prépa/nettoyage/esthétique
-- ct=OUI si contrôle technique
-- vidangeSimple=OUI si vidange (simple)
-- vidangeComplete=OUI si vidange complète
-- courroie=OUI si courroie distribution
-- batterie=OUI si batterie
-- pneusAvant=OUI si pneus avant, pneusArriere=OUI si pneus arrière, 4 pneus = avant+arrière
-- pneus=0 (aucun), 1 (avant OU arrière), 2 (avant ET arrière)
-
-Travaux carrosserie → body [{desc, amount}]
-Travaux cellule → cell [{desc, amount}]
-
-Motorisation : retranscrire EXACTEMENT ce qui est dit, sans corriger ni interpréter. Si "2 litres 2" est dit, écrire "2.2". Si "2 litres 3" est dit, écrire "2.3". Ne jamais substituer une cylindrée par une autre. Le serveur normalisera ensuite.`,
-        },
-        {
-          role: 'user',
-          content: text,
-        },
-      ],
-    });
-
-    const raw = completion.choices?.[0]?.message?.content || '{}';
-
-    const clean = raw
-      .replace(/```json/g, '')
-      .replace(/```/g, '')
-      .trim();
-
-    const data = JSON.parse(clean);
-
-    if (!data.vehicle) data.vehicle = {};
-    if (!data.mechanics) data.mechanics = {};
-    if (!Array.isArray(data.body)) data.body = [];
-    if (!Array.isArray(data.cell)) data.cell = [];
-
-    // Override cylindrée : extraire depuis le texte Whisper brut,
-    // plus fiable que GPT qui normalise de lui-même
-    const motorExtract = extractMotorisationFromText(text);
-    if (motorExtract && motorExtract.cyl && data.vehicle.motorisation) {
-      data.vehicle.motorisation = data.vehicle.motorisation
-        .replace(/\b(2\.[0-3]|3\.0)\b/, motorExtract.cyl);
-    }
-
-    if (data.vehicle.motorisation) {
-      data.vehicle.motorisation = normalizeMotorisation(data.vehicle.motorisation);
-    }
-    if (data.vehicle.immat) {
-      data.vehicle.immat = formatImmat(data.vehicle.immat);
-    }
-
-    data.mechanics = normalizeMechanics(data.mechanics);
-    data.body = normalizeLines(data.body);
-    data.cell = normalizeLines(data.cell);
-
-    return res.json({ text, data });
-  } catch (error) {
-    console.error(error);
-
-    if (req.file?.path) {
-      fs.unlink(req.file.path, () => {});
-    }
-
-    return res.status(500).json({
-      error: error.message || 'Erreur transcription/analyse',
-    });
-  }
-});
-
-// ─── Route analyse seule (texte → GPT) ────────────────────────────────────────
-// Utilisée quand l'utilisateur a corrigé la transcription avant analyse (point 7)
-app.post('/api/analyze', async (req, res) => {
-  try {
-    if (!openai) {
-      return res.status(400).json({ error: 'OPENAI_API_KEY manquante' });
-    }
-
-    const { text, block } = req.body || {};
-
-    if (!text || typeof text !== 'string') {
-      return res.status(400).json({ error: 'Paramètre text manquant' });
-    }
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      temperature: 0.1,
-      max_tokens: 400,
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: `Tu es un assistant expert VO camping-car Ypocamp. Retourne UNIQUEMENT un JSON valide sans markdown ni backticks.\n\nFormat exact :\n{\"vehicle\":{\"marque\":\"\",\"modele\":\"\",\"motorisation\":\"\",\"mec\":\"\",\"immat\":\"\",\"prixAchat\":\"\",\"cessionOdoo\":\"\",\"commercial\":\"\"},\"mechanics\":{\"prepEsthetique\":\"NON\",\"ct\":\"NON\",\"vidangeSimple\":\"NON\",\"vidangeComplete\":\"NON\",\"courroie\":\"NON\",\"pneusAvant\":\"NON\",\"pneusArriere\":\"NON\",\"pneus\":\"0\",\"batterie\":\"NON\",\"autresMeca\":\"0\"},\"body\":[],\"cell\":[]}\n\nRègles mécanique :\n- prepEsthetique=OUI si prépa/nettoyage/esthétique\n- ct=OUI si contrôle technique\n- vidangeSimple=OUI si vidange (simple)\n- vidangeComplete=OUI si vidange complète\n- courroie=OUI si courroie distribution\n- batterie=OUI si batterie\n- pneusAvant=OUI si pneus avant, pneusArriere=OUI si pneus arrière, 4 pneus = avant+arrière\n- pneus=0 (aucun), 1 (avant OU arrière), 2 (avant ET arrière)\n\nTravaux carrosserie → body [{desc, amount}]\nTravaux cellule → cell [{desc, amount}]\n\nMotorisation : retranscrire EXACTEMENT ce qui est dit, sans corriger ni interpréter. Si "2 litres 2" est dit, écrire "2.2". Si "2 litres 3" est dit, écrire "2.3". Ne jamais substituer une cylindrée par une autre. Le serveur normalisera ensuite.`,
-        },
-        {
-          role: 'user',
-          content: text,
-        },
-      ],
-    });
-
-    const raw = completion.choices?.[0]?.message?.content || '{}';
-    const clean = raw.replace(/```json/g, '').replace(/```/g, '').trim();
-    const data = JSON.parse(clean);
-
-    if (!data.vehicle) data.vehicle = {};
-    if (!data.mechanics) data.mechanics = {};
-    if (!Array.isArray(data.body)) data.body = [];
-    if (!Array.isArray(data.cell)) data.cell = [];
-
-    if (data.vehicle.motorisation) {
-      data.vehicle.motorisation = normalizeMotorisation(data.vehicle.motorisation);
-    }
-    if (data.vehicle.immat) {
-      data.vehicle.immat = formatImmat(data.vehicle.immat);
-    }
-
-    data.mechanics = normalizeMechanics(data.mechanics);
-    data.body = normalizeLines(data.body);
-    data.cell = normalizeLines(data.cell);
-
-    return res.json({ data });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: error.message || 'Erreur analyse' });
-  }
-});
-
-app.post('/api/generate-excel', async (req, res) => {
-  try {
-    const payload = req.body || {};
-
-    const workbook = new ExcelJS.Workbook();
-
-    await workbook.xlsx.readFile(
-      path.resolve(__dirname, '../assets/template_fiche_provision.xlsx')
-    );
-
-    const sheet = workbook.worksheets[0];
-
-    const v = payload.vehicle || {};
-    const m = normalizeMechanics(payload.mechanics || {});
-    const body = Array.isArray(payload.body) ? payload.body : [];
-    const cell = Array.isArray(payload.cell) ? payload.cell : [];
-
-    set(sheet, 'B8', v.marque || '');
-    set(sheet, 'B9', v.modele || '');
-    set(sheet, 'B10', normalizeMotorisation(v.motorisation || ''));
-
-    set(sheet, 'E8', v.mec || '');
-    set(sheet, 'E9', v.immat || '');
-
-    set(sheet, 'E10', number(v.prixAchat));
-    set(sheet, 'E11', number(v.cessionOdoo));
-
-    set(sheet, 'B12', v.commercial || '');
-    set(sheet, 'E12', today());
-
-    set(sheet, 'D14', m.prepEsthetique);
-
-    set(sheet, 'D18', m.ct);
-    set(sheet, 'D19', m.vidangeSimple);
-    set(sheet, 'D20', m.vidangeComplete);
-    set(sheet, 'D21', m.courroie);
-
-    set(sheet, 'D22', 'NON');
-    set(sheet, 'D23', m.pneus);
-    set(sheet, 'D24', m.batterie);
-    set(sheet, 'D25', number(m.autresMeca));
-
-    for (let r = 29; r <= 34; r++) {
-      set(sheet, `A${r}`, '');
-      set(sheet, `E${r}`, '');
-    }
-
-    body.slice(0, 6).forEach((line, i) => {
-      const row = 29 + i;
-      set(sheet, `A${row}`, line.desc || '');
-      set(sheet, `E${row}`, number(line.amount));
-    });
-
-    for (let r = 38; r <= 51; r++) {
-      set(sheet, `A${r}`, '');
-      set(sheet, `E${r}`, '');
-    }
-
-    cell.slice(0, 14).forEach((line, i) => {
-      const row = 38 + i;
-      set(sheet, `A${row}`, line.desc || '');
-      set(sheet, `E${row}`, number(line.amount));
-    });
-
-    set(sheet, 'A54', 'Pack Fraicheur');
-    set(sheet, 'A55', "Test d'humidité");
-    set(sheet, 'E58', getMauvaiseSurprise(v.mec));
-
-    const filename =
-      `Fiche_Provision_${cleanFileName(v.marque)}_${cleanFileName(v.modele)}_${cleanFileName(v.immat)}.xlsx`;
-
-    const buffer = await workbook.xlsx.writeBuffer();
-
-    res.setHeader(
-      'Content-Type',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    );
-
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="${filename}"`
-    );
-
-    res.send(Buffer.from(buffer));
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      error: error.message || 'Erreur génération Excel',
-    });
-  }
-});
-
-// Formate l'immatriculation au format français SIV : AA-123-BB
-function formatImmat(value) {
-  // Supprimer espaces ET tirets pour normaliser
-  const raw = String(value || '').toUpperCase().replace(/[\s\-]/g, '');
-  const siv = raw.match(/^([A-Z]{2})(\d{3})([A-Z]{2})$/);
-  if (siv) return `${siv[1]}-${siv[2]}-${siv[3]}`;
-  return String(value || '').trim();
-}
-
-// Extrait cylindrée + puissance directement depuis le texte Whisper brut
-// Court-circuite GPT qui se trompe sur la cylindrée
-function extractMotorisationFromText(text) {
-  if (!text) return null;
-
-  const t = text.toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-  // Cylindrée — couvre formes numériques (2 litres 2) ET verbales (deux litres deux)
-  // Ordre important : du plus spécifique au plus général
-  let cyl = null;
-  if (/(?:2|deux)\s*litres?\s*(?:3|trois)\b|2[,.]3\b/.test(t))     cyl = '2.3';
-  else if (/(?:2|deux)\s*litres?\s*(?:2|deux)\b|2[,.]2\b/.test(t)) cyl = '2.2';
-  else if (/(?:2|deux)\s*litres?\s*(?:1|un)\b|2[,.]1\b/.test(t))   cyl = '2.1';
-  else if (/(?:3|trois)\s*litres?\b|3[,.]0\b/.test(t))              cyl = '3.0';
-  else if (/(?:2|deux)\s*litres?\b|2[,.]0\b/.test(t))               cyl = '2.0';
-
-  // Puissance (ex: "140 chevaux", "140 ch")
-  let power = null;
-  const pwMatch = t.match(/(\d{3})\s*(?:ch\b|chevaux|cheval)/);
-  if (pwMatch) power = pwMatch[1];
-
-  if (!cyl && !power) return null;
-  return { cyl, power };
-}
-
-function normalizeMotorisation(value) {
-  const original = String(value || '').trim();
-
-  if (!original) return '';
-
-  const normalizedInput = normalizeMotorText(original);
-
-  let best = '';
-  let bestScore = 0;
-
-  for (const candidate of MOTORISATION_CATALOG) {
-    const score = scoreMotorisation(normalizedInput, normalizeMotorText(candidate));
-
-    if (score > bestScore) {
-      bestScore = score;
-      best = candidate;
-    }
-  }
-
-  if (bestScore >= 3) return best;
-
-  return fallbackMotorisation(original);
-}
-
-function scoreMotorisation(input, candidate) {
-  let score = 0;
-
-  const inputTokens = input.split(' ').filter(Boolean);
-  const candidateTokens = candidate.split(' ').filter(Boolean);
-
-  for (const token of candidateTokens) {
-    if (inputTokens.includes(token)) {
-      score += 1;
-    }
-  }
-
-  const inputPower = input.match(/\b(105|110|120|125|130|135|140|143|145|150|155|160|163|165|170|177|180|185|190|204)\b/);
-  const candidatePower = candidate.match(/\b(105|110|120|125|130|135|140|143|145|150|155|160|163|165|170|177|180|185|190|204)\b/);
-
-  if (inputPower && candidatePower && inputPower[1] === candidatePower[1]) {
-    score += 3;
-  }
-
-  const inputCyl = input.match(/\b(2\.0|2\.1|2\.2|2\.3|3\.0)\b/);
-  const candidateCyl = candidate.match(/\b(2\.0|2\.1|2\.2|2\.3|3\.0)\b/);
-
-  if (inputCyl && candidateCyl) {
-    if (inputCyl[1] === candidateCyl[1]) {
-      score += 5; // correspondance exacte cylindrée = bonus fort
-    } else {
-      score -= 5; // cylindrée différente = pénalité éliminatoire
-    }
-  }
-
-  return score;
-}
-
-function normalizeMotorText(value) {
-  let v = String(value || '').toLowerCase();
-
-  v = v
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-
-  v = v
-    .replace(/citroen/g, 'citroen')
-    .replace(/ducato/g, 'fiat ducato')
-    .replace(/boxer/g, 'peugeot boxer')
-    .replace(/jumper/g, 'citroen jumper')
-    .replace(/transit/g, 'ford transit')
-    .replace(/sprinter/g, 'mercedes sprinter')
-    .replace(/master/g, 'renault master')
-    .replace(/daily/g, 'iveco daily')
-    .replace(/crafter/g, 'volkswagen crafter')
-    .replace(/transporter/g, 'volkswagen transporter')
-    .replace(/\btge\b/g, 'man tge');
-
-  v = v
-    .replace(/deux litres trois/g, '2.3')
-    .replace(/deux litre trois/g, '2.3')
-    .replace(/2 litres 3/g, '2.3')
-    .replace(/2 litre 3/g, '2.3')
-    .replace(/deux litres deux/g, '2.2')
-    .replace(/deux litre deux/g, '2.2')
-    .replace(/2 litres 2/g, '2.2')
-    .replace(/2 litre 2/g, '2.2')
-    .replace(/deux litres un/g, '2.1')
-    .replace(/deux litre un/g, '2.1')
-    .replace(/deux litres/g, '2.0')
-    .replace(/deux litre/g, '2.0')
-    .replace(/trois litres/g, '3.0')
-    .replace(/trois litre/g, '3.0');
-
-  v = v
-    .replace(/cent cinq/g, '105')
-    .replace(/cent dix/g, '110')
-    .replace(/cent vingt/g, '120')
-    .replace(/cent vingt cinq/g, '125')
-    .replace(/cent trente cinq/g, '135')
-    .replace(/cent trente/g, '130')
-    .replace(/cent quarante cinq/g, '145')
-    .replace(/cent quarante trois/g, '143')
-    .replace(/cent quarante/g, '140')
-    .replace(/cent cinquante cinq/g, '155')
-    .replace(/cent cinquante/g, '150')
-    .replace(/cent soixante cinq/g, '165')
-    .replace(/cent soixante trois/g, '163')
-    .replace(/cent soixante/g, '160')
-    .replace(/cent soixante dix sept/g, '177')
-    .replace(/cent soixante dix/g, '170')
-    .replace(/cent quatre vingt cinq/g, '185')
-    .replace(/cent quatre vingt dix/g, '190')
-    .replace(/cent quatre vingt/g, '180')
-    .replace(/deux cent quatre/g, '204');
-
-  v = v
-    .replace(/chevaux/g, 'ch')
-    .replace(/cheval/g, 'ch')
-    .replace(/\bch\b/g, '')
-    .replace(/blue hdi/g, 'bluehdi')
-    .replace(/bluehdi/g, 'bluehdi')
-    .replace(/tdci/g, 'tdci')
-    .replace(/cdi/g, 'cdi')
-    .replace(/dci/g, 'dci')
-    .replace(/ecoblue/g, 'ecoblue')
-    .replace(/eco blue/g, 'ecoblue');
-
-  return v
-    .replace(/[^\w.]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function fallbackMotorisation(value) {
-  let v = String(value || '').toLowerCase();
-
-  if (!v.trim()) return '';
-
-  v = v
-    .replace(/ducato/g, 'Fiat Ducato')
-    .replace(/boxer/g, 'Peugeot Boxer')
-    .replace(/jumper/g, 'Citroën Jumper')
-    .replace(/transit/g, 'Ford Transit')
-    .replace(/sprinter/g, 'Mercedes Sprinter')
-    .replace(/master/g, 'Renault Master')
-    .replace(/daily/g, 'Iveco Daily')
-    .replace(/crafter/g, 'Volkswagen Crafter')
-    .replace(/transporter/g, 'Volkswagen Transporter')
-    .replace(/\btge\b/g, 'MAN TGE');
-
-  v = v
-    .replace(/deux litres trois/g, '2.3')
-    .replace(/deux litres deux/g, '2.2')
-    .replace(/deux litres/g, '2.0')
-    .replace(/trois litres/g, '3.0');
-
-  v = v
-    .replace(/cent trente/g, '130')
-    .replace(/cent quarante/g, '140')
-    .replace(/cent cinquante/g, '150')
-    .replace(/cent soixante/g, '160')
-    .replace(/cent soixante dix/g, '170')
-    .replace(/cent quatre vingt/g, '180');
-
-  v = v
-    .replace(/\b105\b/g, '105 ch')
-    .replace(/\b110\b/g, '110 ch')
-    .replace(/\b120\b/g, '120 ch')
-    .replace(/\b125\b/g, '125 ch')
-    .replace(/\b130\b/g, '130 ch')
-    .replace(/\b135\b/g, '135 ch')
-    .replace(/\b140\b/g, '140 ch')
-    .replace(/\b143\b/g, '143 ch')
-    .replace(/\b145\b/g, '145 ch')
-    .replace(/\b150\b/g, '150 ch')
-    .replace(/\b155\b/g, '155 ch')
-    .replace(/\b160\b/g, '160 ch')
-    .replace(/\b163\b/g, '163 ch')
-    .replace(/\b165\b/g, '165 ch')
-    .replace(/\b170\b/g, '170 ch')
-    .replace(/\b177\b/g, '177 ch')
-    .replace(/\b180\b/g, '180 ch')
-    .replace(/\b185\b/g, '185 ch')
-    .replace(/\b190\b/g, '190 ch')
-    .replace(/\b204\b/g, '204 ch');
-
-  return v
-    .replace(/ch ch/g, 'ch')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function normalizeMechanics(m = {}) {
-  const pneusAvant = m.pneusAvant === 'OUI' ? 'OUI' : 'NON';
-  const pneusArriere = m.pneusArriere === 'OUI' ? 'OUI' : 'NON';
-
-  return {
-    prepEsthetique: m.prepEsthetique === 'OUI' ? 'OUI' : 'NON',
-    ct: m.ct === 'OUI' ? 'OUI' : 'NON',
-    vidangeSimple: m.vidangeSimple === 'OUI' ? 'OUI' : 'NON',
-    vidangeComplete: m.vidangeComplete === 'OUI' ? 'OUI' : 'NON',
-    courroie: m.courroie === 'OUI' ? 'OUI' : 'NON',
-
-    pneusAvant,
-    pneusArriere,
-
-    pneus:
-      pneusAvant === 'OUI' && pneusArriere === 'OUI'
-        ? '2'
-        : pneusAvant === 'OUI' || pneusArriere === 'OUI'
-          ? '1'
-          : '0',
-
-    batterie: m.batterie === 'OUI' ? 'OUI' : 'NON',
-    autresMeca: m.autresMeca || '0',
-  };
-}
-
-function normalizeLines(lines = []) {
-  if (!Array.isArray(lines)) return [];
-
-  return lines
-    .map(line => ({
-      id: line.id || makeId(),
-      desc: capitalizeFirst(line.desc || line.description || ''),
-      amount: String(line.amount || line.montant || '').replace(/\D/g, ''),
-    }))
-    .filter(line => line.desc || line.amount);
-}
-
-function getMauvaiseSurprise(mec) {
-  if (!mec) return 750;
-
-  const value = String(mec)
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-
-  const mois = {
-    janvier: 0,
-    fevrier: 1,
-    mars: 2,
-    avril: 3,
-    mai: 4,
-    juin: 5,
-    juillet: 6,
-    aout: 7,
-    septembre: 8,
-    octobre: 9,
-    novembre: 10,
-    decembre: 11,
-  };
-
-  let day = 1;
-  let month = 0;
-  let year = null;
-
-  let match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (match) {
-    day = Number(match[1]);
-    month = Number(match[2]) - 1;
-    year = Number(match[3]);
-  }
-
-  if (!year) {
-    match = value.match(/^(\d{1,2})\/(\d{4})$/);
-    if (match) {
-      month = Number(match[1]) - 1;
-      year = Number(match[2]);
-    }
-  }
-
-  if (!year) {
-    match = value.match(/^(\d{4})$/);
-    if (match) {
-      year = Number(match[1]);
-    }
-  }
-
-  if (!year) {
-    match = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-    if (match) {
-      year = Number(match[1]);
-      month = Number(match[2]) - 1;
-      day = Number(match[3]);
-    }
-  }
-
-  // Format texte : "20 avril 2023"
-  if (!year) {
-    match = value.match(/^(\d{1,2})\s+([a-z]+)\s+(\d{4})$/);
-    if (match && mois[match[2]] !== undefined) {
-      day = Number(match[1]);
-      month = mois[match[2]];
-      year = Number(match[3]);
-    }
-  }
-
-  // Format texte : "avril 2023"
-  if (!year) {
-    match = value.match(/^([a-z]+)\s+(\d{4})$/);
-    if (match && mois[match[1]] !== undefined) {
-      month = mois[match[1]];
-      year = Number(match[2]);
-    }
-  }
-
-  if (!year) return 750;
-
-  const mecDate = new Date(year, month, day);
-  const todayDate = new Date();
-
-  const ageYears =
-    (todayDate - mecDate) /
-    (1000 * 60 * 60 * 24 * 365.25);
-
-  if (ageYears <= 4) return 250;
-  if (ageYears <= 8) return 500;
-
-  return 750;
-}
-
-function set(sheet, cell, value) {
-  sheet.getCell(cell).value = value;
-}
-
-function number(value) {
-  const n = Number(
-    String(value || '')
-      .replace(/\s/g, '')
-      .replace(',', '.')
+  const app = express();
+  app.disable('x-powered-by');
+  if (process.env.TRUST_PROXY_HOPS) app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS));
+  const origins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173')
+    .split(',')
+    .map((s) => s.trim());
+  app.use(
+    cors({
+      origin: (origin, cb) => cb(null, !origin || origins.includes(origin)),
+      methods: ['GET', 'POST'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    }),
   );
-
-  return Number.isFinite(n) ? n : 0;
+  app.use((req, res, next) => {
+    res.set({
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'no-referrer',
+    });
+    if (req.headers.origin && !origins.includes(req.headers.origin))
+      return res.status(403).json({ error: 'Origine non autorisée' });
+    next();
+  });
+  app.use(express.json({ limit: '512kb' }));
+  const api =
+    client ??
+    (process.env.OPENAI_API_KEY
+      ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 90000, maxRetries: 1 })
+      : null);
+  const signingSecret = secret || randomBytes(32).toString('hex'),
+    salt = randomBytes(16);
+  const passwordHash = password ? scryptSync(password, salt, 64) : null;
+  const sign = (value) => createHmac('sha256', signingSecret).update(value).digest('base64url');
+  const equal = (a, b) => a.length === b.length && timingSafeEqual(a, b);
+  const limited = (limit, windowMs) =>
+    rateLimit({
+      windowMs,
+      limit,
+      standardHeaders: 'draft-7',
+      legacyHeaders: false,
+      message: { error: 'Trop de demandes. Réessayez dans quelques minutes.' },
+    });
+  app.get('/api/health', (_, res) =>
+    res.json({ ok: true, authRequired: Boolean(password), speechAvailable: Boolean(api) }),
+  );
+  app.post('/api/login', limited(8, 15 * 60000), (req, res) => {
+    const input = req.body?.password;
+    if (
+      typeof input !== 'string' ||
+      input.length > 256 ||
+      !passwordHash ||
+      !equal(scryptSync(input, salt, 64), passwordHash)
+    )
+      return res.status(401).json({ error: 'Accès refusé' });
+    const body = Buffer.from(
+      JSON.stringify({ exp: Date.now() + 8 * 3600000, id: randomBytes(16).toString('hex') }),
+    ).toString('base64url');
+    res.json({ token: `${body}.${sign(body)}` });
+  });
+  app.use('/api', (req, res, next) => {
+    if (!password) return next();
+    try {
+      const token = req.headers.authorization?.replace(/^Bearer /, '');
+      if (!token || token.length > 1000) throw new Error();
+      const [body, signature, extra] = token.split('.');
+      if (!body || !signature || extra || !equal(Buffer.from(signature), Buffer.from(sign(body))))
+        throw new Error();
+      if (!(JSON.parse(Buffer.from(body, 'base64url').toString()).exp > Date.now()))
+        throw new Error();
+      next();
+    } catch {
+      res
+        .status(401)
+        .json({ error: 'Session expirée. Reconnectez-vous ; votre brouillon est conservé.' });
+    }
+  });
+  const aiLimit = limited(30, 15 * 60000);
+  let activeAi = 0;
+  const aiCapacity = (_, res, next) => {
+    if (activeAi >= 2) {
+      res.set('Retry-After', '10');
+      return res
+        .status(429)
+        .json({ error: 'Deux dictées sont déjà en traitement. Réessayez dans quelques secondes.' });
+    }
+    activeAi++;
+    let released = false;
+    const release = () => {
+      if (!released) {
+        released = true;
+        activeAi--;
+      }
+    };
+    res.once('finish', release);
+    res.once('close', release);
+    next();
+  };
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 2 },
+    fileFilter: (_, file, cb) => {
+      if (
+        ![
+          'audio/webm',
+          'audio/mp4',
+          'audio/mpeg',
+          'audio/wav',
+          'audio/x-wav',
+          'audio/ogg',
+          'video/webm',
+          'video/mp4',
+        ].includes(file.mimetype.split(';')[0])
+      )
+        return cb(Object.assign(new Error('Format audio non pris en charge'), { status: 415 }));
+      cb(null, true);
+    },
+  });
+  app.post(
+    '/api/transcribe',
+    aiLimit,
+    aiCapacity,
+    upload.single('audio'),
+    async (req, res, next) => {
+      const controller = new AbortController();
+      res.once('close', () => {
+        if (!res.writableEnded) controller.abort();
+      });
+      try {
+        if (!api)
+          return res.status(503).json({
+            error:
+              'Dictée indisponible : configuration serveur requise. La saisie manuelle reste disponible.',
+          });
+        if (!req.file?.buffer?.length)
+          return res.status(400).json({ error: 'Enregistrement vide' });
+        const type = req.file.mimetype.split(';')[0];
+        const ext =
+          {
+            'audio/mp4': 'mp4',
+            'video/mp4': 'mp4',
+            'audio/mpeg': 'mp3',
+            'audio/wav': 'wav',
+            'audio/x-wav': 'wav',
+            'audio/ogg': 'ogg',
+          }[type] || 'webm';
+        const model = process.env.TRANSCRIPTION_MODEL || 'gpt-4o-transcribe';
+        const result = await api.audio.transcriptions.create(
+          {
+            file: await toFile(req.file.buffer, `dictee.${ext}`, { type }),
+            model,
+            language: 'fr',
+            response_format: 'json',
+            ...(['gpt-4o-transcribe', 'gpt-4o-mini-transcribe'].includes(model)
+              ? { include: ['logprobs'] }
+              : {}),
+            prompt:
+              'Inspection VO camping-car. Transcription fidèle sans ajout ni déduction. Marques, modèles, références alphanumériques, porteurs, cylindrées, puissances, plaques, dates, kilométrages, euros et centimes. Rapido, Hymer, Bürstner, Dethleffs, Chausson, Challenger, Pilote, Adria, Pössl, Globecar, Knaus, Weinsberg, Carthago, Malibu, Laika, Fleurette, Florium, Autostar, Frankia, Le Voyageur, Notin, Morelo, Concorde, Fiat Ducato, Ford Transit, Peugeot Boxer, Citroën Jumper, Mercedes Sprinter, Iveco Daily, Renault Master, Volkswagen Crafter, MAN TGE.',
+          },
+          { signal: controller.signal },
+        );
+        // A review hint only, never a certified confidence score or an export bypass.
+        const uncertain = Array.isArray(result.logprobs)
+          ? [
+              ...new Set(
+                result.logprobs
+                  .filter((p) => p.logprob < -1.5 && /[\p{L}\p{N}]/u.test(p.token))
+                  .map((p) => p.token.trim()),
+              ),
+            ].slice(0, 30)
+          : [];
+        res.json({ text: result.text || '', uncertain });
+      } catch (e) {
+        next(e);
+      } finally {
+        if (req.file?.buffer) req.file.buffer.fill(0);
+      }
+    },
+  );
+  app.post('/api/analyze', aiLimit, aiCapacity, async (req, res, next) => {
+    const controller = new AbortController();
+    res.once('close', () => {
+      if (!res.writableEnded) controller.abort();
+    });
+    try {
+      if (!api)
+        return res
+          .status(503)
+          .json({ error: 'Analyse vocale indisponible. Utilisez la saisie manuelle.' });
+      const { text, block } = req.body || {};
+      if (
+        !['vehicle', 'mechanics', 'body', 'cell'].includes(block) ||
+        typeof text !== 'string' ||
+        !text.trim() ||
+        text.length > 18000
+      )
+        return res
+          .status(400)
+          .json({ error: 'Texte ou rubrique invalide (18 000 caractères maximum)' });
+      res.json({ data: await analyze(api, text, block, controller.signal) });
+    } catch (e) {
+      next(e);
+    }
+  });
+  app.post('/api/generate-excel', limited(20, 15 * 60000), async (req, res, next) => {
+    try {
+      const wb = await buildWorkbook(req.body),
+        buffer = await wb.xlsx.writeBuffer();
+      res.set({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': 'attachment; filename="Fiche_Provision_VO.xlsx"',
+      });
+      res.send(Buffer.from(buffer));
+    } catch (e) {
+      next(e);
+    }
+  });
+  app.use((e, req, res, next) => {
+    if (res.headersSent) return next(e);
+    if (e.errors)
+      return res
+        .status(422)
+        .json({ error: 'La fiche contient des informations à vérifier', errors: e.errors });
+    if (e.status === 415) return res.status(415).json({ error: 'Format audio non pris en charge' });
+    if (e instanceof multer.MulterError || e.type === 'entity.too.large')
+      return res.status(413).json({ error: 'Enregistrement ou fiche trop volumineux' });
+    console.error('Request failed', { route: req.path, type: e.name, status: e.status || 500 });
+    res.status(502).json({
+      error:
+        'Le traitement a échoué. Votre saisie est conservée ; réessayez ou corrigez la transcription.',
+    });
+  });
+  return app;
 }
-
-function today() {
-  const d = new Date();
-
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-}
-
-function cleanFileName(str = '') {
-  return String(str)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[\\/:*?"<>|]+/g, '')
-    .replace(/[^\w\s-]/g, '')
-    .replace(/\s+/g, '_')
-    .trim();
-}
-
-function capitalizeFirst(str = '') {
-  const value = String(str).trim();
-
-  if (!value) return '';
-
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function makeId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-app.listen(port, () => {
-  console.log(`API running on ${port}`);
-});
+if (process.argv[1] === fileURLToPath(import.meta.url))
+  createApp().listen(Number(process.env.PORT || 8080), '0.0.0.0', () =>
+    console.log('Provision VO API prête'),
+  );
