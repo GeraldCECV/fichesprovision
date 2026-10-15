@@ -118,18 +118,31 @@ function App() {
     }
   }, [active]);
   useEffect(() => {
-    fetch(`${API}/api/health`, { signal: AbortSignal.timeout(10000) })
-      .then((r) => {
-        if (!r.ok) throw new Error();
-        return r.json();
-      })
-      .then(setHealth)
-      .catch(() =>
-        setStatus(
-          'Serveur indisponible. Votre saisie manuelle reste disponible ; réessayez la connexion plus tard.',
-        ),
-      );
+    let stopped = false;
+    let retryTimer;
+    let connectionController;
+    let attempts = 0;
+    async function connect() {
+      connectionController = new AbortController();
+      const deadline = setTimeout(() => connectionController.abort(), 20000);
+      try {
+        const response = await fetch(`${API}/api/health`, { signal: connectionController.signal });
+        if (!response.ok) throw new Error('Connexion indisponible');
+        const result = await response.json();
+        if (!result.ok) throw new Error('Serveur indisponible');
+        if (!stopped) setHealth(result);
+      } catch {
+        if (!stopped)
+          retryTimer = setTimeout(connect, Math.min(30000, 3000 * 2 ** Math.min(attempts++, 4)));
+      } finally {
+        clearTimeout(deadline);
+      }
+    }
+    connect();
     return () => {
+      stopped = true;
+      clearTimeout(retryTimer);
+      connectionController?.abort();
       generation.current++;
       clearInterval(timer.current);
       abort.current?.abort();
@@ -716,17 +729,9 @@ function App() {
             </form>
           )}
           {!health && (
-            <button
-              disabled={locked}
-              onClick={() =>
-                fetch(`${API}/api/health`)
-                  .then((r) => r.json())
-                  .then(setHealth)
-                  .catch(() => setStatus('Serveur toujours indisponible.'))
-              }
-            >
-              Réessayer la connexion au serveur
-            </button>
+            <p className="small muted" role="status">
+              Connexion aux services vocaux et Excel en cours… Votre saisie reste disponible.
+            </p>
           )}
           {voice}
           {texts[active]?.trim() && form.voiceWarnings?.[active]?.length > 0 && (
