@@ -14,8 +14,15 @@ export function createApp({
   password = process.env.APP_PASSWORD,
   secret = process.env.APP_SESSION_SECRET,
   production = process.env.NODE_ENV === 'production',
+  allowPublic = process.env.ALLOW_PUBLIC_ACCESS === 'true',
 } = {}) {
-  if (production && (!password || password.length < 12 || !secret || secret.length < 32))
+  // Public access is an explicit deployment choice; protected access stays the default.
+  if (allowPublic) password = undefined;
+  if (
+    production &&
+    !allowPublic &&
+    (!password || password.length < 12 || !secret || secret.length < 32)
+  )
     throw new Error(
       'APP_PASSWORD (12 caractères minimum) et APP_SESSION_SECRET (32 minimum) requis en production',
     );

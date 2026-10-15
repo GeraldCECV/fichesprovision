@@ -3,6 +3,17 @@ import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { createApp } from '../src/server.js';
 import { valid } from './fixtures.js';
+
+test('accès public explicite fonctionne en production sans demander de mot de passe', async (t) => {
+  const base = await server(t, {
+    production: true,
+    allowPublic: true,
+    password: 'ancien-mot-de-passe',
+  });
+  const health = await (await fetch(`${base}/api/health`)).json();
+  assert.equal(health.authRequired, false);
+  assert.equal((await post(`${base}/api/generate-excel`, valid())).status, 200);
+});
 async function server(t, options = {}) {
   const instance = createApp({ production: false, client: false, ...options }).listen(
     0,

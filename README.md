@@ -80,3 +80,7 @@ npm audit
 Les tests couvrent les centimes, dates, seuils, alternatives, propositions partielles, réponses IA tronquées/refusées, accès, origines, limites de charge et aller-retour Excel de 400 travaux. Les appels IA y sont simulés, sans dépense ni données réelles. Le contrôle navigateur couvre saisie, restauration après actualisation, exclusivité des vidanges, relecture et annulation d’une proposition simulée, export et affichage à 390 px.
 
 **Avant production :** exécuter la recette vocale réelle décrite dans `docs/RECETTE_VOCALE.md`. La compilation et les mocks ne mesurent pas la reconnaissance acoustique. Tester le fichier dans les versions d’Excel/LibreOffice réellement utilisées et vérifier la mise en page imprimée ; les tests de sérialisation seuls ne garantissent pas ces comportements natifs.
+
+## Accès sans mot de passe
+
+`ALLOW_PUBLIC_ACCESS=true` désactive explicitement l’authentification pour le service concerné, même si `APP_PASSWORD` reste configuré. Les limites de fréquence et de concurrence restent actives ; toute personne disposant du lien peut utiliser les appels OpenAI payants. Sans ce réglage, l’accès protégé demeure obligatoire en production. Le serveur de recette utilise cette option à la demande de son propriétaire ; elle ne modifie pas le service de production.
