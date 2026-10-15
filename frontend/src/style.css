@@ -1504,3 +1504,201 @@ footer {
   background: #1d52ca;
   border-color: #1d52ca;
 }
+
+/* A compact inspection screen on phones. */
+.mobile-voice-details,
+.mobile-step-label {
+  display: none;
+}
+@media (max-width: 760px) {
+  .topbar {
+    min-height: 64px;
+    padding: 10px 15px;
+  }
+  .brand div > span {
+    display: none;
+  }
+  .brand img {
+    width: 76px;
+  }
+  .top-actions {
+    gap: 6px;
+  }
+  .top-actions button {
+    font-size: 9px;
+    padding: 8px;
+    min-height: 40px;
+  }
+  .top-actions {
+    flex-wrap: wrap;
+  }
+  .workspace {
+    padding-inline: 15px;
+  }
+  .workspace > aside {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    margin: 0 -15px 18px;
+    background: #20242b;
+  }
+  nav {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 3px;
+    padding: 7px;
+    overflow: visible;
+  }
+  nav button {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    min-width: 0;
+    width: 100%;
+    padding: 7px 2px;
+    min-height: 58px;
+  }
+  nav strong {
+    font-size: 9px;
+    line-height: 1.2;
+  }
+  .desktop-step-label {
+    display: none;
+  }
+  .mobile-step-label {
+    display: inline;
+  }
+  .step-number {
+    min-width: 20px;
+    height: 20px;
+    font-size: 9px;
+  }
+  .page-heading {
+    padding: 0 0 14px;
+  }
+  .page-heading h1 {
+    font-size: 28px;
+    letter-spacing: -0.8px;
+    margin: 0;
+  }
+  .page-heading p,
+  .page-heading .eyebrow {
+    display: none;
+  }
+  .dossier-overview {
+    display: block;
+    padding: 13px 16px;
+    margin-bottom: 14px;
+  }
+  .dossier-identity {
+    padding: 0;
+    border: 0;
+    gap: 3px;
+  }
+  .dossier-identity > .eyebrow,
+  .dossier-metric {
+    display: none;
+  }
+  .dossier-identity > strong {
+    font-size: 17px;
+  }
+  .dossier-identity > span:last-child {
+    font-size: 10px;
+  }
+  .voice-content {
+    padding: 16px;
+  }
+  .voice-content > .section-heading {
+    margin-bottom: 12px;
+  }
+  .voice-content h2 {
+    font-size: 16px;
+  }
+  .voice-content > .section-heading .pill {
+    font-size: 8px;
+    padding: 4px 6px;
+  }
+  .voice-content > p {
+    display: none;
+  }
+  .voice-actions {
+    margin-bottom: 0;
+    gap: 8px;
+  }
+  .voice-actions .voice-record {
+    width: 100%;
+    min-height: 50px;
+    font-size: 14px;
+  }
+  .voice-actions[data-recording='false'] > .muted {
+    display: none;
+  }
+  .mobile-voice-details {
+    display: block;
+    margin: 7px auto 0;
+    min-height: 40px;
+    border: 0;
+    background: transparent;
+    font-size: 11px;
+    color: #6c7684;
+    padding: 8px 12px;
+  }
+  .voice-secondary[data-expanded='false'] {
+    display: none;
+  }
+  .voice-secondary[data-expanded='true'] {
+    display: block;
+    padding-top: 12px;
+  }
+  .card {
+    padding: 18px 16px;
+  }
+  .voice {
+    padding: 0;
+  }
+  .form-content > .card > .small {
+    display: none;
+  }
+  .form-content > .card > .section-heading {
+    padding-bottom: 14px;
+    margin-bottom: 17px;
+  }
+  .section-heading h2 {
+    font-size: 16px;
+  }
+  .form-content > .card > .section-heading .pill {
+    font-size: 8px;
+  }
+  .bottom-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 15;
+    background: var(--paper);
+    border-top: 1px solid var(--line);
+    padding: 10px 0 max(10px, env(safe-area-inset-bottom));
+    margin: 0 -1px 15px;
+  }
+  .bottom-actions button {
+    font-size: 12px;
+  }
+  .budget {
+    padding: 20px;
+    margin-top: 0;
+  }
+  .budget .eyebrow {
+    margin-bottom: 12px;
+  }
+  .budget h2 {
+    font-size: 32px;
+  }
+  .budget-lines {
+    padding: 15px 0 10px;
+  }
+  .budget-lines > div {
+    padding: 9px 0;
+  }
+  .budget > p {
+    display: none;
+  }
+}

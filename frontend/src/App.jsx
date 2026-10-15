@@ -88,6 +88,7 @@ function App() {
   });
   const [installPrompt, setInstallPrompt] = useState(null);
   const [installHelp, setInstallHelp] = useState(false);
+  const [voiceDetails, setVoiceDetails] = useState(false);
   const [installed, setInstalled] = useState(
     () => window.matchMedia('(display-mode: standalone)').matches || Boolean(navigator.standalone),
   );
@@ -531,7 +532,7 @@ function App() {
           Une information à la fois, avec sa valeur. Épelez les plaques et références ; prononcez
           les euros et les centimes.
         </p>
-        <div className="voice-actions">
+        <div className="voice-actions" data-recording={recording}>
           <button
             className={recording ? 'voice-record danger' : 'voice-record primary'}
             onClick={record}
@@ -556,53 +557,63 @@ function App() {
             {recording ? 'Microphone ouvert — enregistrement en cours' : 'Microphone fermé'}
           </span>
         </div>
-        {audio && (
-          <div className="playback">
-            <audio controls src={audio} aria-label="Réécouter la dernière dictée" />
-            <button
-              disabled={locked || loginNeeded}
-              onClick={() => transcribe(lastBlob.current, voiceBlock.current)}
-            >
-              Relancer la transcription
-            </button>
-          </div>
-        )}
-        <label className="transcript-label" htmlFor="transcript">
-          Texte reconnu <span>Vous pouvez aussi saisir votre texte directement</span>
-        </label>
-        <textarea
-          id="transcript"
-          rows="3"
-          maxLength={18000}
-          placeholder="Ex. Réparation du pare-chocs avant, 450 euros et 50 centimes."
-          value={texts[active] || ''}
-          disabled={locked || Boolean(review)}
-          onChange={(e) =>
-            setForm((prev) => ({ ...prev, texts: { ...prev.texts, [active]: e.target.value } }))
-          }
-        />
         <button
-          onClick={analyzeText}
-          disabled={
-            locked ||
-            loginNeeded ||
-            Boolean(review) ||
-            !texts[active]?.trim() ||
-            !health?.speechAvailable
-          }
+          className="mobile-voice-details"
+          aria-expanded={voiceDetails}
+          aria-controls="voice-secondary"
+          onClick={() => setVoiceDetails((value) => !value)}
         >
-          Analyser le texte vérifié →
+          {voiceDetails ? 'Masquer le texte et la réécoute' : 'Texte et réécoute'}
         </button>
-        <details className="privacy">
-          <summary>Traitement des données vocales</summary>
-          <p>
-            L’audio est envoyé au serveur puis à OpenAI pour transcription ; le texte corrigé est
-            envoyé à OpenAI pour remplir automatiquement les champs après la dictée, ou lors d’une
-            analyse du texte corrigé. Le serveur traite l’audio en mémoire, sans fichier conservé.
-            La copie de réécoute reste dans cet onglet jusqu’à son remplacement ou sa fermeture.
-            Aucun enregistrement n’est envoyé au service vocal natif du navigateur.
-          </p>
-        </details>
+        <div id="voice-secondary" className="voice-secondary" data-expanded={voiceDetails}>
+          {audio && (
+            <div className="playback">
+              <audio controls src={audio} aria-label="Réécouter la dernière dictée" />
+              <button
+                disabled={locked || loginNeeded}
+                onClick={() => transcribe(lastBlob.current, voiceBlock.current)}
+              >
+                Relancer la transcription
+              </button>
+            </div>
+          )}
+          <label className="transcript-label" htmlFor="transcript">
+            Texte reconnu <span>Vous pouvez aussi saisir votre texte directement</span>
+          </label>
+          <textarea
+            id="transcript"
+            rows="3"
+            maxLength={18000}
+            placeholder="Ex. Réparation du pare-chocs avant, 450 euros et 50 centimes."
+            value={texts[active] || ''}
+            disabled={locked || Boolean(review)}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, texts: { ...prev.texts, [active]: e.target.value } }))
+            }
+          />
+          <button
+            onClick={analyzeText}
+            disabled={
+              locked ||
+              loginNeeded ||
+              Boolean(review) ||
+              !texts[active]?.trim() ||
+              !health?.speechAvailable
+            }
+          >
+            Analyser le texte vérifié →
+          </button>
+          <details className="privacy">
+            <summary>Traitement des données vocales</summary>
+            <p>
+              L’audio est envoyé au serveur puis à OpenAI pour transcription ; le texte corrigé est
+              envoyé à OpenAI pour remplir automatiquement les champs après la dictée, ou lors d’une
+              analyse du texte corrigé. Le serveur traite l’audio en mémoire, sans fichier conservé.
+              La copie de réécoute reste dans cet onglet jusqu’à son remplacement ou sa fermeture.
+              Aucun enregistrement n’est envoyé au service vocal natif du navigateur.
+            </p>
+          </details>
+        </div>
       </div>
     </section>
   );
@@ -657,7 +668,12 @@ function App() {
                     {complete ? '✓' : i + 1}
                   </span>
                   <span>
-                    <strong>{label}</strong>
+                    <strong>
+                      <span className="desktop-step-label">{label}</span>
+                      <span className="mobile-step-label">
+                        {['Véhicule', 'Méca', 'Carrosserie', 'Cellule', 'Provision'][i]}
+                      </span>
+                    </strong>
                     <small>{sub}</small>
                   </span>
                 </button>
