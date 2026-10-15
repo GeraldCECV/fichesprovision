@@ -178,7 +178,7 @@ export function validate(data, now = new Date()) {
   if (m.courroie === 'OUI' && m.courroiePompe === 'OUI')
     add('mechanics.courroiePompe', 'Choisissez une seule distribution');
   try {
-    parseCents(m.autresMeca);
+    parseCents(m.autresMeca, { empty: true });
   } catch (e) {
     add('mechanics.autresMeca', `Autres mécanique : ${e.message}`);
   }

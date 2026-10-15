@@ -154,3 +154,14 @@ test('les forfaits mécaniques commencent à Non', () => {
     !validate(structuredClone(INITIAL), NOW).some((error) => error.path === 'mechanics.ct'),
   );
 });
+
+test('autres mécanique vide est accepté comme zéro, sans accepter un montant invalide', () => {
+  const d = valid();
+  d.mechanics.autresMeca = '';
+  assert.equal(validate(d, NOW).length, 0);
+  const before = totals(d, NOW).total;
+  d.mechanics.autresMeca = '0';
+  assert.equal(totals(d, NOW).total, before);
+  d.mechanics.autresMeca = 'abc';
+  assert.ok(validate(d, NOW).some((e) => e.path === 'mechanics.autresMeca'));
+});

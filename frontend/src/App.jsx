@@ -893,9 +893,10 @@ function App() {
                   ))}
                 </div>
                 <label className="field">
-                  <span>Autres travaux mécaniques (€ HT) · saisir 0 si aucun</span>
+                  <span>Autres travaux mécaniques (€ HT) · vide = 0</span>
                   <input
                     inputMode="decimal"
+                    placeholder="0"
                     value={data.mechanics.autresMeca}
                     onChange={(e) => field('mechanics.autresMeca', e.target.value)}
                   />
@@ -1052,7 +1053,7 @@ function App() {
                   ))}
                   <div className="recap-line">
                     <span>Autres mécanique</span>
-                    <strong>{data.mechanics.autresMeca || 'À renseigner'} €</strong>
+                    <strong>{data.mechanics.autresMeca || '0'} €</strong>
                   </div>
                   {['body', 'cell'].map((block) => (
                     <div key={block}>

@@ -55,8 +55,8 @@ export async function buildWorkbook(data, now = new Date()) {
   set('D23', trains);
   formula('E23', 'D23*400', trains * 40000);
   s.getCell('D23').dataValidation = { type: 'list', allowBlank: false, formulae: ['"0,1,2"'] };
-  set('D25', euros(m.autresMeca));
-  formula('E25', 'D25', parseCents(m.autresMeca));
+  set('D25', parseCents(m.autresMeca, { empty: true }) / 100);
+  formula('E25', 'D25', parseCents(m.autresMeca, { empty: true }));
   for (let row = 29; row <= 34; row++) {
     set(`A${row}`, '');
     set(`E${row}`, null);
