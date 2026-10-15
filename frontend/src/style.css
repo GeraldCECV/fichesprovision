@@ -1433,3 +1433,62 @@ footer {
     font-size: 32px;
   }
 }
+
+/* Mechanical status tiles, shared by manual input and dictation. */
+.mechanics-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+}
+.mechanic {
+  padding: 17px 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8f9fb;
+  gap: 12px;
+  min-width: 0;
+  flex-direction: row;
+  align-items: center;
+}
+.mechanic > div {
+  min-width: 0;
+}
+.mechanic strong {
+  font-size: 12px;
+  line-height: 1.4;
+  display: block;
+}
+.mechanic-toggle {
+  flex-shrink: 0;
+  border-radius: 30px;
+  padding: 8px 12px;
+  min-height: 38px;
+  font-size: 10px;
+  white-space: nowrap;
+  background: white;
+  color: #77818e;
+  border: 1px solid #dfe3e8;
+}
+.mechanic-toggle.state-OUI {
+  background: #edf9f0;
+  color: #237c43;
+  border-color: #b8e6c5;
+}
+.mechanic-toggle.state-OUI:hover:not(:disabled) {
+  background: #dff4e5;
+  border-color: #86c99a;
+}
+.mechanic-toggle.state-A_CONTROLER {
+  color: #976e34;
+  background: #fff8ed;
+  border-color: #ead6b6;
+  font-size: 8px;
+}
+@media (max-width: 760px) {
+  .mechanic-toggle {
+    min-height: 44px;
+  }
+  .mechanic strong {
+    font-size: 13px;
+  }
+}

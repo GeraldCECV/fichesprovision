@@ -877,7 +877,8 @@ function App() {
                   <span className="pill">Forfaits à relire avant export</span>
                 </div>
                 <p className="small muted">
-                  « Non » signifie contrôlé, sans travaux nécessaires. Les tarifs proviennent du
+                  Cliquez sur le bouton pour passer de « À contrôler » à « Oui », puis « Non ». «
+                  Non » signifie contrôlé, sans travaux nécessaires. Les tarifs proviennent du
                   modèle historique ; vérifiez leur pertinence.
                 </p>
                 <div className="mechanics-list">
@@ -887,15 +888,27 @@ function App() {
                         <strong>{label}</strong>
                         <span>{money(price * 100)} si prévu</span>
                       </div>
-                      <select
-                        aria-label={label}
-                        value={data.mechanics[key]}
-                        onChange={(e) => mechanical(key, e.target.value)}
+                      <button
+                        type="button"
+                        className={`mechanic-toggle state-${data.mechanics[key]}`}
+                        aria-label={`${label} : ${data.mechanics[key] === 'OUI' ? 'Oui' : data.mechanics[key] === 'NON' ? 'Non' : 'À contrôler'}`}
+                        aria-pressed={data.mechanics[key] === 'OUI'}
+                        title="Cliquez pour passer de À contrôler à Oui, puis Non, puis À contrôler."
+                        onClick={() =>
+                          mechanical(
+                            key,
+                            { A_CONTROLER: 'OUI', OUI: 'NON', NON: 'A_CONTROLER' }[
+                              data.mechanics[key]
+                            ] || 'OUI',
+                          )
+                        }
                       >
-                        <option value="A_CONTROLER">À contrôler</option>
-                        <option value="NON">Non — contrôlé</option>
-                        <option value="OUI">Oui — à prévoir</option>
-                      </select>
+                        {data.mechanics[key] === 'OUI'
+                          ? 'OUI'
+                          : data.mechanics[key] === 'NON'
+                            ? 'NON'
+                            : 'À CONTRÔLER'}
+                      </button>
                     </div>
                   ))}
                 </div>
