@@ -73,3 +73,26 @@ test('analyse avec schéma strict et transcription traitée comme donnée', asyn
     true,
   );
 });
+
+test('absence explicite de cession Odoo signifie zéro ; absence de mention préserve le champ', async () => {
+  const client = {
+    chat: {
+      completions: {
+        create: async () => ({
+          choices: [
+            {
+              finish_reason: 'stop',
+              message: {
+                content: JSON.stringify({ ...payload(), vehicle: { cessionOdoo: null } }),
+              },
+            },
+          ],
+        }),
+      },
+    },
+  };
+  for (const text of ['Pas de cession Odoo', 'aucune cession Odoo', 'sans cession Odoo']) {
+    assert.equal((await analyze(client, text, 'vehicle')).vehicle.cessionOdoo, '0.00');
+  }
+  assert.equal((await analyze(client, 'Marque Hymer', 'vehicle')).vehicle.cessionOdoo, undefined);
+});
