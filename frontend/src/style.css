@@ -1328,3 +1328,230 @@ nav small {
     font-size: 37px;
   }
 }
+/* Responsive form and touch targets. */
+input,
+select,
+textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+main,
+.card,
+.form-content,
+.field,
+.proposal-grid > div {
+  min-width: 0;
+}
+.recap-line > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.recap-line > strong {
+  flex-shrink: 0;
+}
+@media (min-width: 761px) and (max-width: 980px) {
+  .topbar {
+    padding-inline: 24px;
+  }
+  .workspace {
+    grid-template-columns: 155px minmax(0, 1fr);
+    gap: 24px;
+    padding: 32px 24px;
+  }
+  .brand {
+    gap: 16px;
+  }
+  .card {
+    padding: 24px;
+  }
+  .budget {
+    padding: 24px;
+  }
+  nav button {
+    padding-inline: 8px;
+    gap: 10px;
+  }
+}
+@media (max-width: 760px) {
+  .topbar {
+    height: auto;
+    min-height: 78px;
+    padding-block: 14px;
+    flex-wrap: wrap;
+  }
+  .brand {
+    min-width: 0;
+    flex: 1;
+  }
+  .brand strong {
+    white-space: nowrap;
+  }
+  .top-actions {
+    flex-shrink: 0;
+  }
+  .top-actions button {
+    white-space: nowrap;
+    min-height: 44px;
+    padding: 10px 9px;
+    font-size: 10px;
+  }
+  nav button {
+    min-height: 56px;
+  }
+  .field input,
+  .field select,
+  .field textarea {
+    font-size: 16px;
+    min-height: 48px;
+  }
+  .check {
+    font-size: 12px;
+    gap: 12px;
+  }
+  .check input {
+    width: 20px;
+    height: 20px;
+    min-height: 20px;
+  }
+  .recap-line {
+    gap: 14px;
+  }
+  .recap-line strong {
+    max-width: 48%;
+    overflow-wrap: anywhere;
+  }
+  .privacy summary {
+    padding-block: 8px;
+    font-size: 10px;
+  }
+  .bottom-actions {
+    background: var(--paper);
+    padding-bottom: max(18px, env(safe-area-inset-bottom));
+    flex-wrap: wrap;
+  }
+  .bottom-actions button {
+    min-height: 48px;
+    flex: 1;
+  }
+  .voice-actions .primary,
+  .voice-actions .danger {
+    min-height: 48px;
+  }
+  .voice-actions > .muted {
+    font-size: 10px;
+  }
+  .work-line button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .button-row > button {
+    min-height: 48px;
+  }
+  .page-heading p {
+    font-size: 12px;
+  }
+}
+@media (max-width: 600px) {
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 19px;
+  }
+  .voice-actions .primary,
+  .voice-actions .danger {
+    width: 100%;
+  }
+  .voice-actions > .muted {
+    width: 100%;
+    text-align: center;
+  }
+  .section-heading {
+    flex-wrap: wrap;
+  }
+  .voice .section-heading {
+    flex-direction: column;
+  }
+  .voice .pill {
+    max-width: none;
+  }
+  .transcript-label span {
+    font-size: 10px;
+  }
+  .voice textarea {
+    min-height: 112px;
+  }
+  .field > span {
+    font-size: 12px;
+  }
+  .work-line .amount {
+    flex: 1;
+    max-width: none;
+    min-width: 0;
+  }
+  .mechanic {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .mechanic select {
+    width: 100%;
+    min-height: 46px;
+    font-size: 14px;
+  }
+  .mechanic strong {
+    font-size: 13px;
+  }
+  .mechanic span {
+    font-size: 11px;
+  }
+  .playback audio {
+    width: 100%;
+  }
+  .playback button {
+    width: 100%;
+    min-height: 44px;
+  }
+  .voice > button {
+    min-height: 44px;
+    font-size: 12px;
+  }
+  .budget-lines > div,
+  .budget-lines strong {
+    font-size: 12px;
+  }
+  .budget-lines span {
+    max-width: 55%;
+  }
+}
+@media (max-width: 480px) {
+  .proposal-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .proposal-grid dt {
+    font-size: 11px;
+  }
+  .proposal-grid dd {
+    font-size: 14px;
+  }
+  .brand img {
+    width: 80px;
+  }
+  .brand {
+    gap: 10px;
+  }
+  .brand-divider {
+    display: none;
+  }
+  .brand div > span {
+    font-size: 7px;
+    letter-spacing: 0.5px;
+  }
+  .topbar {
+    gap: 8px;
+  }
+  .voice > p {
+    font-size: 12px;
+  }
+  .bottom-actions button {
+    padding-inline: 11px;
+  }
+}

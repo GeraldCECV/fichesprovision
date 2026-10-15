@@ -92,6 +92,13 @@ function App() {
     locked = Boolean(busy || recording);
   const loginNeeded = health?.authRequired && !token;
   useEffect(() => {
+    if (window.matchMedia('(max-width: 760px)').matches) {
+      document
+        .querySelector('nav [aria-current="step"]')
+        ?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+    }
+  }, [active]);
+  useEffect(() => {
     fetch(`${API}/api/health`, { signal: AbortSignal.timeout(10000) })
       .then((r) => {
         if (!r.ok) throw new Error();
