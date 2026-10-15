@@ -77,11 +77,45 @@ function App() {
     { data, texts, review, active } = form;
   const [remember, setRemember] = useState(() => {
     try {
-      return Boolean(localStorage.getItem(DRAFT));
+      return (
+        Boolean(localStorage.getItem(DRAFT)) ||
+        window.matchMedia('(display-mode: standalone)').matches ||
+        Boolean(navigator.standalone)
+      );
     } catch {
       return false;
     }
   });
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [installHelp, setInstallHelp] = useState(false);
+  const [installed, setInstalled] = useState(
+    () => window.matchMedia('(display-mode: standalone)').matches || Boolean(navigator.standalone),
+  );
+  useEffect(() => {
+    const capture = (event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+    };
+    const done = () => {
+      setInstalled(true);
+      setInstallPrompt(null);
+      setInstallHelp(false);
+    };
+    window.addEventListener('beforeinstallprompt', capture);
+    window.addEventListener('appinstalled', done);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', capture);
+      window.removeEventListener('appinstalled', done);
+    };
+  }, []);
+  async function install() {
+    if (installPrompt) {
+      await installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      setInstallPrompt(null);
+      if (choice.outcome === 'accepted') setInstallHelp(false);
+    } else setInstallHelp((value) => !value);
+  }
   const [saveStatus, setSaveStatus] = useState(''),
     [status, setStatus] = useState('');
   const [health, setHealth] = useState(null),
@@ -585,6 +619,7 @@ function App() {
           </div>
         </div>
         <div className="top-actions">
+          {!installed && <button onClick={install}>Installer l’app</button>}
           <span className="save-status">{saveStatus}</span>
           <button disabled={locked || Boolean(review)} onClick={reset}>
             + Nouvelle fiche
@@ -651,6 +686,25 @@ function App() {
           </p>
         </aside>
         <main>
+          {installHelp && (
+            <section className="card install-help" aria-label="Installer l’application">
+              <h2>Provision VO sur votre téléphone</h2>
+              <p>
+                <strong>iPhone :</strong> ouvrez ce site dans Safari, touchez Partager, puis « Sur
+                l’écran d’accueil » et « Ajouter ».
+              </p>
+              <p>
+                <strong>Android :</strong> dans Chrome, ouvrez le menu ⋮ puis « Installer
+                l’application » ou « Ajouter à l’écran d’accueil ».
+              </p>
+              <p>
+                La dictée utilise le microphone et Internet. Après une première ouverture en ligne,
+                la saisie manuelle reste accessible hors connexion. Dans l’application installée, le
+                brouillon est conservé sur cet appareil ; évitez les appareils partagés.
+              </p>
+              <button onClick={() => setInstallHelp(false)}>Fermer</button>
+            </section>
+          )}
           <div className="page-heading">
             <div>
               <span className="eyebrow">ÉTAPE {step + 1} SUR 5</span>
@@ -1181,3 +1235,9 @@ function App() {
   );
 }
 createRoot(document.getElementById('root')).render(<App />);
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
