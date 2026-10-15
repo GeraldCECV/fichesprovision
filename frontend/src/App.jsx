@@ -705,9 +705,6 @@ function App() {
             </p>
           )}
           {voice}
-          {texts[active]?.trim() && form.voiceWarnings?.[active]?.length > 0 && (
-            <p className="notice">Points à vérifier : {form.voiceWarnings[active].join(' · ')}.</p>
-          )}
           {review && (
             <section className="card review" aria-label="Proposition de dictée à confirmer">
               <span className="eyebrow">RELECTURE OBLIGATOIRE</span>
