@@ -910,7 +910,7 @@ function App() {
                   </p>
                   <div className="fields">
                     {Object.entries({
-                      admin: 'Administration / livraison',
+                      admin: 'Forfait Administratif',
                       pack: 'Pack fraîcheur',
                       humidite: 'Test d’humidité',
                       divers: 'Divers',

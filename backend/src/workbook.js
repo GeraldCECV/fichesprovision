@@ -32,6 +32,7 @@ export async function buildWorkbook(data, now = new Date()) {
   set('E11', euros(v.cessionOdoo));
   set('B12', v.commercial);
   set('E12', new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris' }).format(now));
+  set('A13', 'Forfait Administratif');
   set('E13', euros(data.fees.admin));
   const rows = {
     prepEsthetique: 14,
