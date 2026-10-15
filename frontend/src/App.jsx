@@ -47,7 +47,7 @@ function restore() {
     return {
       ...empty(),
       ...saved,
-      data: { ...saved.data, taxBasis: 'HT', confirmed: false },
+      data: { ...saved.data, taxBasis: 'HT' },
       active: STEPS.some(([s]) => s === saved.active) ? saved.active : 'vehicle',
     };
   } catch {
@@ -149,7 +149,7 @@ function App() {
   function change(fn) {
     setUndo(null);
     setReviewConfirmed(false);
-    setForm((prev) => ({ ...prev, data: { ...fn(structuredClone(prev.data)), confirmed: false } }));
+    setForm((prev) => ({ ...prev, data: { ...fn(structuredClone(prev.data)) } }));
   }
   function field(path, value) {
     change((next) => {
@@ -222,7 +222,7 @@ function App() {
         texts: { ...prev.texts, [block]: json.text },
         voiceWarnings: { ...prev.voiceWarnings, [block]: json.uncertain || [] },
         review: null,
-        data: { ...prev.data, confirmed: false },
+        data: { ...prev.data },
       }));
       setStatus(
         'Transcription prête. Vérifiez les noms, références et chiffres, puis lancez l’analyse.',
@@ -333,7 +333,7 @@ function App() {
       setForm((prev) => ({
         ...prev,
         review: { block: active, proposal: json.data },
-        data: { ...prev.data, confirmed: false },
+        data: { ...prev.data },
       }));
       setReplace(false);
       setReviewConfirmed(false);
@@ -655,7 +655,9 @@ function App() {
                   {(review.proposal[review.block] || []).map((l, i) => (
                     <li key={i}>
                       {l.desc} —{' '}
-                      <strong>{l.amount === null ? 'Montant à préciser' : `${l.amount} €`}</strong>
+                      <strong>
+                        {l.amount === null ? 'Montant à préciser' : `${l.amount} € HT`}
+                      </strong>
                     </li>
                   ))}
                 </ul>
@@ -699,7 +701,7 @@ function App() {
               className="undo"
               disabled={locked}
               onClick={() => {
-                setForm((p) => ({ ...p, data: { ...undo, confirmed: false } }));
+                setForm((p) => ({ ...p, data: { ...undo } }));
                 setUndo(null);
                 setStatus('Dernière application de dictée annulée.');
               }}
@@ -801,7 +803,7 @@ function App() {
                   ))}
                 </div>
                 <label className="field">
-                  <span>Autres travaux mécaniques (€) · saisir 0 si aucun</span>
+                  <span>Autres travaux mécaniques (€ HT) · saisir 0 si aucun</span>
                   <input
                     inputMode="decimal"
                     value={data.mechanics.autresMeca}
@@ -846,7 +848,7 @@ function App() {
                       />
                     </label>
                     <label className="field amount">
-                      <span>Montant (€)</span>
+                      <span>Montant (€ HT)</span>
                       <input
                         inputMode="decimal"
                         value={l.amount}
@@ -902,7 +904,7 @@ function App() {
                 <section className="card">
                   <div className="section-heading">
                     <h2>Forfaits & base de calcul</h2>
-                    <span className="pill">À confirmer pour cette fiche</span>
+                    <span className="pill">Montants HT appliqués à cette fiche</span>
                   </div>
                   <p className="small muted">
                     La cession Odoo est une information distincte : elle n’est pas ajoutée au prix
@@ -916,14 +918,13 @@ function App() {
                       divers: 'Divers',
                     }).map(([key, label]) => (
                       <label className="field" key={key}>
-                        <span>{label} (€)</span>
+                        <span>{label} (€ HT)</span>
                         <input
                           inputMode="decimal"
                           value={data.fees[key]}
                           onChange={(e) =>
                             change((n) => {
                               n.fees[key] = e.target.value;
-                              n.pricingReviewed = false;
                               return n;
                             })
                           }
@@ -935,19 +936,6 @@ function App() {
                     Mauvaises surprises : 250 € jusqu’à 4 ans inclus, 500 € jusqu’à 8 ans inclus,
                     750 € au-delà. Date complète obligatoire.
                   </p>
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={data.pricingReviewed}
-                      onChange={(e) =>
-                        change((n) => {
-                          n.pricingReviewed = e.target.checked;
-                          return n;
-                        })
-                      }
-                    />
-                    J’ai vérifié les forfaits mécaniques et les frais, tous exprimés HT.
-                  </label>
                 </section>
                 <section className="card recap">
                   <h2>Relecture complète</h2>
@@ -1006,17 +994,6 @@ function App() {
                         })
                       }
                     />
-                  </label>
-                  <label className="check final-check">
-                    <input
-                      type="checkbox"
-                      checked={data.confirmed}
-                      disabled={Boolean(review)}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, data: { ...p.data, confirmed: e.target.checked } }))
-                      }
-                    />
-                    J’ai relu la fiche et vérifié les informations sur les documents du véhicule.
                   </label>
                 </section>
                 {(errors.length > 0 || review) && (
@@ -1098,8 +1075,8 @@ function App() {
             <strong>{money(financial.cost)}</strong>
           </div>
           <p className="small">
-            Calcul provisoire tant que les contrôles, montants et forfaits ne sont pas confirmés.
-            Une valeur invalide n’est pas incluse.
+            Calcul provisoire tant que les contrôles ne sont pas terminés et les montants
+            renseignés. Une valeur invalide n’est pas incluse.
           </p>
           <div className={errors.length === 0 && !review ? 'readiness ready' : 'readiness'}>
             {errors.length === 0 && !review

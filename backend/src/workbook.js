@@ -94,7 +94,7 @@ export async function buildWorkbook(data, now = new Date()) {
   set('E58', t.surprise / 100);
   formula('E60', 'E13+E14+SUM(E18:E25)+SUM(E29:E34)+SUM(E38:E51)+SUM(E54:E57)+E58', t.total);
   formula('E62', 'E10+E60', t.cost);
-  set('A64', `Montants ${data.taxBasis} • Tarifs relus et fiche confirmée par ${v.commercial}`);
+  set('A64', `Montants ${data.taxBasis} • Fiche préparée par ${v.commercial}`);
   s.mergeCells('A64:E64');
   s.getCell('A64').alignment = { wrapText: true };
   s.getRow(64).height = 32;
@@ -123,11 +123,11 @@ export async function buildWorkbook(data, now = new Date()) {
   const trace = wb.addWorksheet('Validation');
   trace.columns = [
     { header: 'Information', width: 42 },
-    { header: 'Valeur confirmée', width: 85 },
+    { header: 'Valeur saisie', width: 85 },
   ];
   for (const [key, label] of Object.entries(VEHICLE_LABELS)) trace.addRow([label, v[key] || '']);
   trace.addRow(['Base des montants', data.taxBasis]);
-  trace.addRow(['Forfaits', 'Tarifs issus du modèle historique, relus avant export']);
+  trace.addRow(['Forfaits', 'Tarifs HT issus du modèle historique']);
   trace.addRow([
     'Mauvaises surprises',
     '250 € jusqu’à 4 ans inclus ; 500 € jusqu’à 8 ans inclus ; 750 € au-delà',

@@ -8,8 +8,8 @@ export const VEHICLE_LABELS = {
   vin: 'VIN / numéro de châssis',
   kilometrage: 'Kilométrage',
   stock: 'Numéro de stock',
-  prixAchat: 'Prix d’achat',
-  cessionOdoo: 'Cession Odoo',
+  prixAchat: 'Prix d’achat HT',
+  cessionOdoo: 'Cession Odoo HT',
   commercial: 'Réalisé par',
 };
 export const MECHANICS = {
@@ -33,14 +33,13 @@ export const INITIAL = {
   cell: [],
   inspection: { body: false, cell: false },
   fees: { admin: '1025', pack: '0', humidite: '0', divers: '0' },
-  confirmed: false,
-  pricingReviewed: false,
   taxBasis: 'HT',
   notes: '',
 };
 export const makeId = () => globalThis.crypto.randomUUID();
 export const money = (cents) =>
-  new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(cents / 100);
+  new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(cents / 100) +
+  ' HT';
 
 export function parseCents(value, { empty = false } = {}) {
   if (value === '' || value === null || value === undefined) {
@@ -227,8 +226,6 @@ export function validate(data, now = new Date()) {
   if (data.taxBasis !== 'HT') add('taxBasis', 'Tous les montants doivent être HT');
   if (typeof data.notes !== 'string' || data.notes.length > 5000)
     add('notes', 'Notes : 5 000 caractères maximum');
-  if (data.pricingReviewed !== true) add('pricingReviewed', 'Confirmez les forfaits et frais HT');
-  if (data.confirmed !== true) add('confirmed', 'Relisez et confirmez la fiche avant export');
   return errors;
 }
 
@@ -264,6 +261,5 @@ export function applyProposal(data, block, proposal, mode = 'append') {
     next[block] = mode === 'replace' ? lines : [...next[block], ...lines];
     next.inspection[block] = false;
   }
-  next.confirmed = false;
   return next;
 }

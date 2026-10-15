@@ -62,7 +62,7 @@ Documentation utilisée : [transcription](https://developers.openai.com/api/docs
 
 ## Règles financières conservées et rendues explicites
 
-Forfaits issus du classeur historique : administration/livraison 1 025 €, esthétique 230 €, CT 80 €, vidange simple 150 €, complète 350 €, distribution seule 600 €, distribution + pompe 850 €, train de pneus 400 €, batterie moteur 180 €. Les frais supplémentaires sont éditables ; les forfaits mécaniques doivent être validés métier avant production. Tous les montants sont exclusivement HT, sans sélecteur ni conversion de TVA.
+Forfaits issus du classeur historique : administration/livraison 1 025 €, esthétique 230 €, CT 80 €, vidange simple 150 €, complète 350 €, distribution seule 600 €, distribution + pompe 850 €, train de pneus 400 €, batterie moteur 180 €. Les frais supplémentaires sont éditables ; les forfaits mécaniques sont appliqués automatiquement en HT. Tous les montants sont exclusivement HT, sans sélecteur ni conversion de TVA.
 
 Provision mauvaises surprises : 250 € jusqu’au quatrième anniversaire inclus, 500 € jusqu’au huitième inclus, 750 € au-delà (date métier Europe/Paris). Les dates partielles ou futures sont bloquées. Prix de revient = achat + provision ; cession Odoo affichée et exportée séparément, selon le modèle historique.
 
@@ -84,3 +84,5 @@ Les tests couvrent les centimes, dates, seuils, alternatives, propositions parti
 ## Accès sans mot de passe
 
 `ALLOW_PUBLIC_ACCESS=true` désactive explicitement l’authentification pour le service concerné, même si `APP_PASSWORD` reste configuré. Les limites de fréquence et de concurrence restent actives ; toute personne disposant du lien peut utiliser les appels OpenAI payants. Sans ce réglage, l’accès protégé demeure obligatoire en production. Le serveur de recette utilise cette option à la demande de son propriétaire ; elle ne modifie pas le service de production.
+
+Les confirmations manuelles des forfaits et de la fiche avant export sont supprimées. Tous les montants sont HT. Les contrôles automatiques de complétude, dates, montants et alternatives restent actifs ; les inspections métier et la relecture des propositions vocales restent explicites.

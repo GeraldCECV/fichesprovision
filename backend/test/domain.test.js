@@ -77,14 +77,7 @@ test('aucune marque, référence ou motorisation inconnue ne sont rejetées', ()
   assert.deepEqual(validate(valid(), NOW), []));
 test('validation obligatoire des contrôles et confirmations', () => {
   const errors = validate(structuredClone(INITIAL), NOW);
-  for (const path of [
-    'vehicle.mec',
-    'mechanics.ct',
-    'inspection.body',
-    'inspection.cell',
-    'confirmed',
-    'pricingReviewed',
-  ])
+  for (const path of ['vehicle.mec', 'mechanics.ct', 'inspection.body', 'inspection.cell'])
     assert.ok(
       errors.some((e) => e.path === path),
       path,
@@ -113,7 +106,6 @@ test('dictée partielle préserve les valeurs non mentionnées', () => {
   assert.equal(n.vehicle.marque, d.vehicle.marque);
   assert.equal(n.vehicle.motorisation, d.vehicle.motorisation);
   assert.equal(n.vehicle.modele, 'Nouveau modèle');
-  assert.equal(n.confirmed, false);
   assert.equal(d.vehicle.modele, 'Prototype 640-X');
 });
 test('dictée ajoute par défaut et remplace uniquement explicitement', () => {
@@ -148,4 +140,11 @@ test('les montants sont HT par défaut et le TTC est refusé', () => {
   const d = valid();
   d.taxBasis = 'TTC';
   assert.ok(validate(d, NOW).some((e) => e.path === 'taxBasis'));
+});
+
+test('export sans confirmation manuelle des forfaits ou de la fiche', () => {
+  const d = valid();
+  delete d.confirmed;
+  delete d.pricingReviewed;
+  assert.deepEqual(validate(d, NOW), []);
 });
