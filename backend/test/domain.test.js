@@ -148,8 +148,14 @@ test('export sans confirmation manuelle des forfaits ou de la fiche', () => {
   assert.deepEqual(validate(d, NOW), []);
 });
 
-test('les forfaits mécaniques commencent à Non', () => {
-  assert.ok(Object.keys(MECHANICS).every((key) => INITIAL.mechanics[key] === 'NON'));
+test('préparation esthétique pré-cochée, autres forfaits à Non', () => {
+  assert.equal(INITIAL.mechanics.prepEsthetique, 'OUI');
+  assert.ok(
+    Object.keys(MECHANICS)
+      .filter((key) => key !== 'prepEsthetique')
+      .every((key) => INITIAL.mechanics[key] === 'NON'),
+  );
+  assert.equal(totals(structuredClone(INITIAL), NOW).mechanics, 23000);
   assert.ok(
     !validate(structuredClone(INITIAL), NOW).some((error) => error.path === 'mechanics.ct'),
   );

@@ -25,6 +25,7 @@ export const INITIAL = {
   vehicle: Object.fromEntries(Object.keys(VEHICLE_LABELS).map((k) => [k, ''])),
   mechanics: {
     ...Object.fromEntries(Object.keys(MECHANICS).map((k) => [k, 'NON'])),
+    prepEsthetique: 'OUI',
     autresMeca: '',
   },
   body: [],
