@@ -49,7 +49,20 @@ function restore() {
       ...empty(),
       ...saved,
       voiceWarnings: {},
-      data: { ...saved.data, vehicle, taxBasis: 'HT' },
+      data: {
+        ...saved.data,
+        vehicle,
+        taxBasis: 'HT',
+        mechanics: {
+          ...saved.data.mechanics,
+          ...Object.fromEntries(
+            Object.keys(MECHANICS).map((key) => [
+              key,
+              saved.data.mechanics[key] === 'OUI' ? 'OUI' : 'NON',
+            ]),
+          ),
+        },
+      },
       active: STEPS.some(([s]) => s === saved.active) ? saved.active : 'vehicle',
     };
   } catch {
@@ -877,9 +890,9 @@ function App() {
                   <span className="pill">Forfaits à relire avant export</span>
                 </div>
                 <p className="small muted">
-                  Cliquez sur le bouton pour passer de « À contrôler » à « Oui », puis « Non ». «
-                  Non » signifie contrôlé, sans travaux nécessaires. Les tarifs proviennent du
-                  modèle historique ; vérifiez leur pertinence.
+                  Cliquez sur le bouton pour basculer entre « Oui » et « Non ». « Oui » ajoute le
+                  forfait à la provision. Les tarifs proviennent du modèle historique ; vérifiez
+                  leur pertinence.
                 </p>
                 <div className="mechanics-list">
                   {Object.entries(MECHANICS).map(([key, [label, price]]) => (
@@ -891,23 +904,14 @@ function App() {
                       <button
                         type="button"
                         className={`mechanic-toggle state-${data.mechanics[key]}`}
-                        aria-label={`${label} : ${data.mechanics[key] === 'OUI' ? 'Oui' : data.mechanics[key] === 'NON' ? 'Non' : 'À contrôler'}`}
+                        aria-label={`${label} : ${data.mechanics[key] === 'OUI' ? 'Oui' : 'Non'}`}
                         aria-pressed={data.mechanics[key] === 'OUI'}
-                        title="Cliquez pour passer de À contrôler à Oui, puis Non, puis À contrôler."
+                        title="Cliquez pour basculer entre Oui et Non."
                         onClick={() =>
-                          mechanical(
-                            key,
-                            { A_CONTROLER: 'OUI', OUI: 'NON', NON: 'A_CONTROLER' }[
-                              data.mechanics[key]
-                            ] || 'OUI',
-                          )
+                          mechanical(key, data.mechanics[key] === 'OUI' ? 'NON' : 'OUI')
                         }
                       >
-                        {data.mechanics[key] === 'OUI'
-                          ? 'OUI'
-                          : data.mechanics[key] === 'NON'
-                            ? 'NON'
-                            : 'À CONTRÔLER'}
+                        {data.mechanics[key] === 'OUI' ? 'OUI' : 'NON'}
                       </button>
                     </div>
                   ))}
@@ -1066,7 +1070,7 @@ function App() {
                           ? money(price * 100)
                           : data.mechanics[key] === 'NON'
                             ? 'Non — contrôlé'
-                            : 'À contrôler'}
+                            : 'Non'}
                       </strong>
                     </div>
                   ))}

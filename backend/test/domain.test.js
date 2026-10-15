@@ -77,7 +77,7 @@ test('aucune marque, référence ou motorisation inconnue ne sont rejetées', ()
   assert.deepEqual(validate(valid(), NOW), []));
 test('validation obligatoire des contrôles et confirmations', () => {
   const errors = validate(structuredClone(INITIAL), NOW);
-  for (const path of ['vehicle.mec', 'mechanics.ct', 'inspection.body', 'inspection.cell'])
+  for (const path of ['vehicle.mec', 'inspection.body', 'inspection.cell'])
     assert.ok(
       errors.some((e) => e.path === path),
       path,
@@ -146,4 +146,11 @@ test('export sans confirmation manuelle des forfaits ou de la fiche', () => {
   delete d.confirmed;
   delete d.pricingReviewed;
   assert.deepEqual(validate(d, NOW), []);
+});
+
+test('les forfaits mécaniques commencent à Non', () => {
+  assert.ok(Object.keys(MECHANICS).every((key) => INITIAL.mechanics[key] === 'NON'));
+  assert.ok(
+    !validate(structuredClone(INITIAL), NOW).some((error) => error.path === 'mechanics.ct'),
+  );
 });
