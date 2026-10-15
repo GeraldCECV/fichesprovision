@@ -77,7 +77,7 @@ test('aucune marque, référence ou motorisation inconnue ne sont rejetées', ()
   assert.deepEqual(validate(valid(), NOW), []));
 test('validation obligatoire des contrôles et confirmations', () => {
   const errors = validate(structuredClone(INITIAL), NOW);
-  for (const path of ['vehicle.mec', 'inspection.body', 'inspection.cell'])
+  for (const path of ['vehicle.mec'])
     assert.ok(
       errors.some((e) => e.path === path),
       path,
@@ -164,4 +164,10 @@ test('autres mécanique vide est accepté comme zéro, sans accepter un montant 
   assert.equal(totals(d, NOW).total, before);
   d.mechanics.autresMeca = 'abc';
   assert.ok(validate(d, NOW).some((e) => e.path === 'mechanics.autresMeca'));
+});
+
+test('carrosserie et cellule sans confirmation manuelle ne bloquent pas l’export', () => {
+  const d = valid();
+  d.inspection = { body: false, cell: false };
+  assert.equal(validate(d, NOW).length, 0);
 });

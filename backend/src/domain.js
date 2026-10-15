@@ -188,11 +188,6 @@ export function validate(data, now = new Date()) {
       add(block, 'Maximum 200 travaux par rubrique');
       continue;
     }
-    if (data.inspection?.[block] !== true)
-      add(
-        `inspection.${block}`,
-        `${block === 'body' ? 'Carrosserie' : 'Cellule'} : inspection à confirmer`,
-      );
     lines.forEach((line, i) => {
       if (!line || typeof line.desc !== 'string' || !line.desc.trim() || line.desc.length > 1000)
         add(

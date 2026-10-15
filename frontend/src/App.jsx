@@ -918,7 +918,9 @@ function App() {
                 {data[active].length === 0 && (
                   <div className="empty">
                     <strong>Aucun travail saisi</strong>
-                    <p>Ajoutez les travaux identifiés ou confirmez l’inspection sans travaux.</p>
+                    <p>
+                      Ajoutez les travaux identifiés. Sans travaux saisis, le montant reste à zéro.
+                    </p>
                   </div>
                 )}
                 {data[active].map((l, i) => (
@@ -979,15 +981,6 @@ function App() {
                 >
                   + Ajouter un travail
                 </button>
-                <label className="check inspection">
-                  <input
-                    type="checkbox"
-                    checked={data.inspection[active]}
-                    onChange={(e) => field(`inspection.${active}`, e.target.checked)}
-                  />
-                  Inspection {active === 'body' ? 'carrosserie' : 'cellule'} terminée ; tous les
-                  travaux identifiés sont saisis.
-                </label>
               </section>
             )}
             {active === 'validation' && (
@@ -1057,10 +1050,7 @@ function App() {
                   </div>
                   {['body', 'cell'].map((block) => (
                     <div key={block}>
-                      <h3>
-                        {block === 'body' ? 'Carrosserie' : 'Cellule'} ·{' '}
-                        {data.inspection[block] ? 'Inspection confirmée' : 'Inspection à confirmer'}
-                      </h3>
+                      <h3>{block === 'body' ? 'Carrosserie' : 'Cellule'}</h3>
                       {data[block].length ? (
                         data[block].map((l) => (
                           <div className="recap-line" key={l.id}>
