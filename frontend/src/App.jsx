@@ -86,7 +86,8 @@ function App() {
     abort = useRef(null),
     voiceBlock = useRef(null),
     generation = useRef(0),
-    lastBlob = useRef(null);
+    lastBlob = useRef(null),
+    appliedAudio = useRef(new WeakSet());
   const step = STEPS.findIndex(([id]) => id === active),
     financial = totals(data);
   const errors = validate(data),
@@ -233,8 +234,31 @@ function App() {
         review: null,
         data: { ...prev.data },
       }));
+      if (appliedAudio.current.has(blob)) {
+        setStatus(
+          'Transcription relancée. Cet enregistrement a déjà rempli les champs ; modifiez-les directement ou analysez le texte corrigé.',
+        );
+        return;
+      }
+      setBusy('Remplissage automatique des champs');
+      const result = await (await request('/api/analyze', { text: json.text, block })).json();
+      setUndo(structuredClone(data));
+      setForm((prev) => ({
+        ...prev,
+        data: applyProposal(prev.data, block, result.data, 'append'),
+        review: null,
+        voiceWarnings: {
+          ...prev.voiceWarnings,
+          [block]: [
+            ...(json.uncertain || []).map((fragment) => `À réécouter : ${fragment}`),
+            ...(result.data.warnings || []),
+          ],
+        },
+      }));
+      appliedAudio.current.add(blob);
+      setVoiceOpen(false);
       setStatus(
-        'Transcription prête. Vérifiez les noms, références et chiffres, puis lancez l’analyse.',
+        'Dictée appliquée : les champs ont été remplis automatiquement. Vérifiez les références et les montants ; vous pouvez corriger les champs ou annuler ce remplissage.',
       );
     } catch (e) {
       setStatus(e.message);
@@ -430,7 +454,7 @@ function App() {
         </span>
         <span>
           <strong>Dicter mes observations</strong>
-          <small>Parlez, relisez, puis appliquez à la fiche.</small>
+          <small>Parlez : les champs se remplissent à l’arrêt.</small>
         </span>
         <span className="voice-toggle-state">
           {recording
@@ -449,7 +473,7 @@ function App() {
             <span className="eyebrow">SAISIE VOCALE</span>
             <h2>Notes d’inspection</h2>
           </div>
-          <span className="pill">Relecture avant application</span>
+          <span className="pill">Remplissage automatique</span>
         </div>
         <p>
           Une information à la fois, avec sa valeur. Épelez les plaques et références ; prononcez
@@ -492,7 +516,7 @@ function App() {
           </div>
         )}
         <label className="transcript-label" htmlFor="transcript">
-          Transcription à vérifier <span>Vous pouvez aussi saisir votre texte directement</span>
+          Texte reconnu <span>Vous pouvez aussi saisir votre texte directement</span>
         </label>
         <textarea
           id="transcript"
@@ -505,12 +529,6 @@ function App() {
             setForm((prev) => ({ ...prev, texts: { ...prev.texts, [active]: e.target.value } }))
           }
         />
-        {form.voiceWarnings?.[active]?.length > 0 && (
-          <p className="notice">
-            Fragments à réécouter : {form.voiceWarnings[active].join(' · ')}. Ce signal ne garantit
-            pas l’exactitude des autres mots.
-          </p>
-        )}
         <button
           onClick={analyzeText}
           disabled={
@@ -527,9 +545,10 @@ function App() {
           <summary>Traitement des données vocales</summary>
           <p>
             L’audio est envoyé au serveur puis à OpenAI pour transcription ; le texte corrigé est
-            envoyé à OpenAI uniquement lors de l’analyse. Le serveur traite l’audio en mémoire, sans
-            fichier conservé. La copie de réécoute reste dans cet onglet jusqu’à son remplacement ou
-            sa fermeture. Aucun enregistrement n’est envoyé au service vocal natif du navigateur.
+            envoyé à OpenAI pour remplir automatiquement les champs après la dictée, ou lors d’une
+            analyse du texte corrigé. Le serveur traite l’audio en mémoire, sans fichier conservé.
+            La copie de réécoute reste dans cet onglet jusqu’à son remplacement ou sa fermeture.
+            Aucun enregistrement n’est envoyé au service vocal natif du navigateur.
           </p>
         </details>
       </div>
@@ -683,6 +702,9 @@ function App() {
             </button>
           )}
           {voice}
+          {form.voiceWarnings?.[active]?.length > 0 && (
+            <p className="notice">Points à vérifier : {form.voiceWarnings[active].join(' · ')}.</p>
+          )}
           {review && (
             <section className="card review" aria-label="Proposition de dictée à confirmer">
               <span className="eyebrow">RELECTURE OBLIGATOIRE</span>
@@ -1150,8 +1172,8 @@ function App() {
         </section>
       </div>
       <footer>
-        Provision VO · Les références restent fidèles à votre saisie. Chaque dictée est relue avant
-        application.
+        Provision VO · Les références restent fidèles à votre saisie. La dictée remplit les champs
+        automatiquement. Vérifiez les références et les montants.
       </footer>
     </div>
   );
