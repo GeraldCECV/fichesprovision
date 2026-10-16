@@ -89,6 +89,12 @@ function App() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [installHelp, setInstallHelp] = useState(false);
   const [voiceDetails, setVoiceDetails] = useState(false);
+  const [voiceNotice, setVoiceNotice] = useState(null);
+  useEffect(() => {
+    if (voiceNotice?.kind !== 'success') return;
+    const timeout = setTimeout(() => setVoiceNotice(null), 6000);
+    return () => clearTimeout(timeout);
+  }, [voiceNotice]);
   const [installed, setInstalled] = useState(
     () => window.matchMedia('(display-mode: standalone)').matches || Boolean(navigator.standalone),
   );
@@ -285,6 +291,7 @@ function App() {
   async function transcribe(blob, block) {
     const operation = generation.current;
     setBusy('Reconnaissance et remplissage en cours');
+    setVoiceNotice({ kind: 'processing', message: 'Reconnaissance et remplissage en cours…' });
     setStatus('');
     try {
       const fd = new FormData();
@@ -302,6 +309,7 @@ function App() {
         data: { ...prev.data },
       }));
       if (appliedAudio.current.has(blob)) {
+        setVoiceNotice({ kind: 'success', message: 'Cet audio a déjà rempli les champs.' });
         setStatus(
           'Transcription relancée. Cet enregistrement a déjà rempli les champs ; modifiez-les directement ou analysez le texte corrigé.',
         );
@@ -313,6 +321,19 @@ function App() {
         ? { data: json.data }
         : await (await request('/api/analyze', { text: json.text, block })).json();
       if (operation !== generation.current) return;
+      const recognized = result.data?.[block];
+      const hasInformation = Array.isArray(recognized)
+        ? recognized.length > 0
+        : recognized &&
+          Object.values(recognized).some(
+            (value) => value !== null && value !== undefined && String(value).trim() !== '',
+          );
+      if (!hasInformation) {
+        setVoiceDetails(true);
+        throw new Error(
+          'Aucune information reconnue pour cette rubrique. Consultez le texte et la réécoute, puis corrigez ou recommencez la dictée.',
+        );
+      }
       setUndo(structuredClone(data));
       setForm((prev) => ({
         ...prev,
@@ -327,11 +348,15 @@ function App() {
         },
       }));
       appliedAudio.current.add(blob);
+      setVoiceNotice({ kind: 'success', message: 'Dictée appliquée aux champs.' });
       setStatus(
         'Dictée appliquée : les champs ont été remplis automatiquement. Vérifiez les références et les montants ; vous pouvez corriger les champs ou annuler ce remplissage.',
       );
     } catch (e) {
-      if (operation === generation.current) setStatus(e.message);
+      if (operation === generation.current) {
+        setStatus(e.message);
+        setVoiceNotice({ kind: 'error', message: e.message });
+      }
     } finally {
       if (operation === generation.current) setBusy('');
     }
@@ -352,6 +377,7 @@ function App() {
       )
     )
       return;
+    setVoiceNotice(null);
     const id = ++generation.current;
     setBusy('Ouverture du microphone');
     setStatus('');
@@ -369,14 +395,14 @@ function App() {
       }
       stream.current = media;
       const mime = [
-        'audio/webm;codecs=opus',
         'audio/mp4',
+        'audio/webm;codecs=opus',
         'audio/webm',
         'audio/ogg;codecs=opus',
       ].find((t) => MediaRecorder.isTypeSupported(t));
       const rec = new MediaRecorder(media, {
         ...(mime ? { mimeType: mime } : {}),
-        audioBitsPerSecond: 64000,
+        ...(!mime?.includes('mp4') ? { audioBitsPerSecond: 64000 } : {}),
       });
       recorder.current = rec;
       chunks.current = [];
@@ -401,7 +427,20 @@ function App() {
         media.getTracks().forEach((t) => t.stop());
         setRecording(false);
         if (id !== generation.current) return;
-        const blob = new Blob(chunks.current, { type: rec.mimeType || 'audio/webm' });
+        const blob = new Blob(chunks.current, {
+          type:
+            rec.mimeType ||
+            chunks.current.find((chunk) => chunk.type)?.type ||
+            mime ||
+            'audio/webm',
+        });
+        if (!blob.size) {
+          const message =
+            'Aucun audio reçu du microphone. Gardez l’application au premier plan et recommencez.';
+          setStatus(message);
+          setVoiceNotice({ kind: 'error', message });
+          return;
+        }
         lastBlob.current = blob;
         setAudio(URL.createObjectURL(blob));
         if (blob.size > 20 * 1024 * 1024) {
@@ -410,7 +449,9 @@ function App() {
         }
         transcribe(blob, voiceBlock.current);
       };
-      rec.start(1000);
+      // Safari receives a complete MP4 on stop instead of fragmented timeslices.
+      if (mime?.includes('mp4')) rec.start();
+      else rec.start(1000);
       setRecording(true);
       let elapsed = 0;
       timer.current = setInterval(() => {
@@ -502,6 +543,7 @@ function App() {
     setAudio(null);
     setUndo(null);
     setForm(empty());
+    setVoiceNotice(null);
     setStatus('Nouvelle fiche prête.');
   }
   function mechanical(key, value) {
@@ -619,7 +661,7 @@ function App() {
   );
 
   return (
-    <div className={recording ? 'app is-recording' : 'app'}>
+    <div className={recording || voiceNotice ? 'app has-voice-dock' : 'app'}>
       <header className="topbar">
         <div className="brand">
           <img src="/logo_ypocamp.jpeg" alt="YpoCamp" />
@@ -1243,16 +1285,37 @@ function App() {
           </div>
         </section>
       </div>
-      {recording && (
+      {(recording || voiceNotice) && (
         <div className="mobile-recording-dock">
-          <button className="danger" onClick={() => recorder.current?.stop()}>
-            <span className="recording-dot" aria-hidden="true" />
-            <span>Arrêter la dictée</span>
-            <span className="recording-time">
-              {String(Math.floor(seconds / 60)).padStart(2, '0')}:
-              {String(seconds % 60).padStart(2, '0')}
-            </span>
-          </button>
+          {recording ? (
+            <button className="danger" onClick={() => recorder.current?.stop()}>
+              <span className="recording-dot" aria-hidden="true" />
+              <span>Arrêter la dictée</span>
+              <span className="recording-time">
+                {String(Math.floor(seconds / 60)).padStart(2, '0')}:
+                {String(seconds % 60).padStart(2, '0')}
+              </span>
+            </button>
+          ) : (
+            <div className={`voice-feedback ${voiceNotice.kind}`}>
+              <p role={voiceNotice.kind === 'error' ? 'alert' : 'status'}>{voiceNotice.message}</p>
+              <div className="voice-feedback-actions">
+                {voiceNotice.kind === 'error' && lastBlob.current && (
+                  <button
+                    onClick={() => transcribe(lastBlob.current, voiceBlock.current)}
+                    disabled={locked}
+                  >
+                    Réessayer la dictée
+                  </button>
+                )}
+                {voiceNotice.kind === 'processing' ? (
+                  <button onClick={() => abort.current?.abort()}>Interrompre</button>
+                ) : (
+                  <button onClick={() => setVoiceNotice(null)}>Fermer</button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
       <footer>

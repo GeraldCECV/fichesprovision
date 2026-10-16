@@ -1707,10 +1707,10 @@ footer {
   display: none;
 }
 @media (max-width: 760px) {
-  .app.is-recording {
+  .app.has-voice-dock {
     padding-bottom: calc(94px + env(safe-area-inset-bottom));
   }
-  .is-recording .bottom-actions {
+  .has-voice-dock .bottom-actions {
     bottom: calc(84px + env(safe-area-inset-bottom));
   }
   .mobile-recording-dock {
@@ -1747,5 +1747,34 @@ footer {
     font-variant-numeric: tabular-nums;
     font-weight: 500;
     opacity: 0.9;
+  }
+}
+
+@media (max-width: 760px) {
+  .app.has-voice-dock {
+    padding-bottom: calc(140px + env(safe-area-inset-bottom));
+  }
+  .has-voice-dock .bottom-actions {
+    bottom: calc(130px + env(safe-area-inset-bottom));
+  }
+  .voice-feedback p {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--ink);
+    margin: 0 0 10px;
+    max-height: 64px;
+    overflow: auto;
+  }
+  .voice-feedback.error p {
+    color: #a7392d;
+  }
+  .voice-feedback-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .voice-feedback-actions button {
+    min-height: 40px;
+    font-size: 11px;
+    padding: 8px;
   }
 }
